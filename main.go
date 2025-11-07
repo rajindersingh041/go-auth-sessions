@@ -9,6 +9,7 @@ func main() {
 	// Connect to ClickHouse and set up the table
 	initDB()
 
+	// mux added
 	mux := http.NewServeMux()
 
 	// Use Go 1.22+ method-based routing.
