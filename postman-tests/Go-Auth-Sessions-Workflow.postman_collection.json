@@ -1,0 +1,597 @@
+{
+	"info": {
+		"_postman_id": "go-auth-complete-workflow",
+		"name": "Go Auth Sessions - Complete Workflow Test",
+		"description": "End-to-end workflow test that runs the complete business process automatically",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1 - Health Check",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Health check successful', function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test('Response contains status', function () {",
+							"    const jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('status');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/health",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"health"
+					]
+				}
+			}
+		},
+		{
+			"name": "2 - Register Test User",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('User registration successful', function () {",
+							"    pm.expect(pm.response.code).to.be.oneOf([201, 400]); // 400 if user already exists",
+							"});",
+							"",
+							"if (pm.response.code === 201) {",
+							"    console.log('✅ New user registered successfully');",
+							"} else if (pm.response.code === 400) {",
+							"    console.log('ℹ️ User already exists, proceeding with login');",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"username\": \"{{username}}\",\n    \"password\": \"{{password}}\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/register",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"register"
+					]
+				}
+			}
+		},
+		{
+			"name": "3 - Login and Get JWT Token",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Login successful', function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test('JWT token received', function () {",
+							"    const jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('token');",
+							"    ",
+							"    // Save JWT token for subsequent requests",
+							"    pm.environment.set('jwt_token', jsonData.token);",
+							"    console.log('✅ JWT token saved successfully');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"username\": \"{{username}}\",\n    \"password\": \"{{password}}\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/login",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"login"
+					]
+				}
+			}
+		},
+		{
+			"name": "4 - Get All Products",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Products retrieved successfully', function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test('Products array received', function () {",
+							"    const jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.be.an('array');",
+							"    pm.expect(jsonData.length).to.be.above(0);",
+							"    ",
+							"    // Save first product ID for order creation",
+							"    if (jsonData.length > 0) {",
+							"        pm.environment.set('product_id_1', jsonData[0].product_id);",
+							"        if (jsonData.length > 1) {",
+							"            pm.environment.set('product_id_2', jsonData[1].product_id);",
+							"        }",
+							"        console.log('✅ Product IDs saved for order creation');",
+							"    }",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/products",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"products"
+					]
+				}
+			}
+		},
+		{
+			"name": "5 - Create Test Product",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Product creation successful', function () {",
+							"    pm.response.to.have.status(201);",
+							"});",
+							"",
+							"console.log('✅ Test product created successfully');"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "Bearer {{jwt_token}}"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"name\": \"Postman Test Product\",\n    \"description\": \"Product created during automated testing\",\n    \"price\": 25.99,\n    \"category\": \"Testing\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/products",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"products"
+					]
+				}
+			}
+		},
+		{
+			"name": "6 - Create Multi-Product Order",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Order creation successful', function () {",
+							"    pm.response.to.have.status(201);",
+							"});",
+							"",
+							"pm.test('Order ID received', function () {",
+							"    const jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('order_id');",
+							"    ",
+							"    // Save order ID for invoice creation",
+							"    pm.environment.set('order_id', jsonData.order_id);",
+							"    console.log('✅ Order created with ID:', jsonData.order_id);",
+							"});",
+							"",
+							"pm.test('Order contains items and totals', function () {",
+							"    const jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('items');",
+							"    pm.expect(jsonData).to.have.property('total');",
+							"    pm.expect(jsonData.total).to.be.above(0);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "Bearer {{jwt_token}}"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"items\": [\n        {\n            \"product_id\": {{product_id_1}},\n            \"quantity\": 2\n        },\n        {\n            \"product_id\": {{product_id_2}},\n            \"quantity\": 1\n        }\n    ]\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/orders",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"orders"
+					]
+				}
+			}
+		},
+		{
+			"name": "7 - Get User Orders",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Orders retrieved successfully', function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test('Orders array received', function () {",
+							"    const jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.be.an('array');",
+							"    pm.expect(jsonData.length).to.be.above(0);",
+							"    console.log('✅ User has', jsonData.length, 'order(s)');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{jwt_token}}"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/orders",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"orders"
+					]
+				}
+			}
+		},
+		{
+			"name": "8 - Generate Invoice from Order",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Invoice creation successful', function () {",
+							"    pm.response.to.have.status(201);",
+							"});",
+							"",
+							"pm.test('Invoice details received', function () {",
+							"    const jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('invoice_id');",
+							"    pm.expect(jsonData).to.have.property('invoice_number');",
+							"    pm.expect(jsonData).to.have.property('items');",
+							"    pm.expect(jsonData).to.have.property('total');",
+							"    ",
+							"    // Save invoice ID for status updates",
+							"    pm.environment.set('invoice_id', jsonData.invoice_id);",
+							"    console.log('✅ Invoice created:', jsonData.invoice_number);",
+							"});",
+							"",
+							"pm.test('Invoice has complete details', function () {",
+							"    const jsonData = pm.response.json();",
+							"    pm.expect(jsonData.status).to.equal('draft');",
+							"    pm.expect(jsonData.items).to.be.an('array');",
+							"    pm.expect(jsonData.items.length).to.be.above(0);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "Bearer {{jwt_token}}"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"order_id\": {{order_id}}\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/invoices",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"invoices"
+					]
+				}
+			}
+		},
+		{
+			"name": "9 - Get Invoice Details",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Invoice retrieved successfully', function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test('Invoice contains aggregated data', function () {",
+							"    const jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('username');",
+							"    pm.expect(jsonData).to.have.property('items');",
+							"    pm.expect(jsonData.items).to.be.an('array');",
+							"    ",
+							"    // Check that product details are included",
+							"    jsonData.items.forEach(function(item) {",
+							"        pm.expect(item).to.have.property('product_name');",
+							"        pm.expect(item).to.have.property('unit_price');",
+							"    });",
+							"    ",
+							"    console.log('✅ Invoice contains complete product details');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{jwt_token}}"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/invoices/{{invoice_id}}",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"invoices",
+						"{{invoice_id}}"
+					]
+				}
+			}
+		},
+		{
+			"name": "10 - Update Invoice Status to Sent",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Invoice status updated successfully', function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"console.log('✅ Invoice status updated to sent');"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "Bearer {{jwt_token}}"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"status\": \"sent\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/invoices/{{invoice_id}}",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"invoices",
+						"{{invoice_id}}"
+					]
+				}
+			}
+		},
+		{
+			"name": "11 - Update Invoice Status to Paid",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Invoice marked as paid successfully', function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"console.log('✅ Invoice marked as paid - Workflow complete!');"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "Bearer {{jwt_token}}"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"status\": \"paid\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/invoices/{{invoice_id}}",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"invoices",
+						"{{invoice_id}}"
+					]
+				}
+			}
+		},
+		{
+			"name": "12 - Verify Final Invoice Status",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Final invoice verification successful', function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test('Invoice status is paid', function () {",
+							"    const jsonData = pm.response.json();",
+							"    pm.expect(jsonData.status).to.equal('paid');",
+							"    console.log('🎉 Complete workflow test PASSED!');",
+							"    console.log('📊 Final Invoice:', jsonData.invoice_number, '- Status:', jsonData.status);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{jwt_token}}"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/invoices/{{invoice_id}}",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"invoices",
+						"{{invoice_id}}"
+					]
+				}
+			}
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"console.log('🚀 Running:', pm.info.requestName);"
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"if (pm.response.code >= 400) {",
+					"    console.log('❌ Request failed:', pm.response.code, pm.response.status);",
+					"    console.log('Response:', pm.response.text());",
+					"} else {",
+					"    console.log('✅ Request succeeded:', pm.response.code, pm.response.status);",
+					"}"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8080",
+			"type": "string"
+		}
+	]
+}
