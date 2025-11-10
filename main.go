@@ -8,9 +8,13 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	// Load .env file if present
+	_ = godotenv.Load()
 	// Initialize database
 	db, err := InitDB()
 	if err != nil {
@@ -18,15 +22,27 @@ func main() {
 	}
 	defer db.Close()
 
-	// Create user repository
-	userRepo := NewUserRepository(db)
+	// Select repository implementation based on DB_DRIVER env variable
+	dbDriver := getEnv("DB_DRIVER", "clickhouse")
+	var userRepo UserRepository
+	var orderRepo OrderRepository
+	switch dbDriver {
+	case "clickhouse":
+		userRepo = NewClickHouseUserRepository(db)
+		orderRepo = NewClickHouseOrderRepository(db)
+	case "postgres":
+		userRepo = NewPostgresUserRepository(db)
+		orderRepo = NewPostgresOrderRepository(db)
+	default:
+		log.Fatalf("Unsupported DB_DRIVER: %s", dbDriver)
+	}
 
 	// Create password hasher and JWT manager
 	passwordHasher := BcryptPasswordHasher{}
 	jwtManager := SimpleJWTManager{}
 
 	// Create and configure server
-	server := NewServer(userRepo, passwordHasher, jwtManager)
+	server := NewServer(userRepo, orderRepo, passwordHasher, jwtManager)
 
 	// Get port from environment
 	port := getEnv("PORT", "8080")

@@ -9,16 +9,27 @@ import (
 	"time"
 
 	_ "github.com/ClickHouse/clickhouse-go/v2"
+	_ "github.com/lib/pq"
 )
 
 // ...User struct moved to models.go...
 // ...UserRepository struct and methods moved to repository.go...
 
-// InitDB initializes the ClickHouse connection with proper configuration
+// InitDB initializes the database connection (ClickHouse or Postgres) with proper configuration
 func InitDB() (*sql.DB, error) {
-	dsn := getDSN()
-	log.Print("DSN is ", dsn)
-	db, err := sql.Open("clickhouse", dsn)
+	driver := getEnvOrDefault("DB_DRIVER", "clickhouse")
+	var db *sql.DB
+	var err error
+	var dsn string
+	if driver == "postgres" {
+		dsn = getPostgresDSN()
+		log.Print("Postgres DSN is ", dsn)
+		db, err = sql.Open("postgres", dsn)
+	} else {
+		dsn = getDSN()
+		log.Print("ClickHouse DSN is ", dsn)
+		db, err = sql.Open("clickhouse", dsn)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to open connection: %w", err)
 	}
@@ -38,15 +49,32 @@ func InitDB() (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	log.Println("Connected to ClickHouse successfully")
+	if driver == "postgres" {
+		log.Println("Connected to Postgres successfully")
+	} else {
+		log.Println("Connected to ClickHouse successfully")
+	}
 
-	// Create users table
-	if err := createUserTable(db); err != nil {
-		db.Close()
-		return nil, err
+	// Create users table (ClickHouse only, Postgres handled in repo)
+	if driver == "clickhouse" {
+		if err := createUserTable(db); err != nil {
+			db.Close()
+			return nil, err
+		}
 	}
 
 	return db, nil
+}
+
+// getPostgresDSN constructs the Postgres connection string from environment variables
+func getPostgresDSN() string {
+	host := getEnvOrDefault("POSTGRES_HOST", "localhost")
+	port := getEnvOrDefault("POSTGRES_PORT", "5432")
+	user := getEnvOrDefault("POSTGRES_USER", "postgres")
+	pass := getEnvOrDefault("POSTGRES_PASSWORD", "mysecretpassword")
+	dbname := getEnvOrDefault("POSTGRES_DB", "authdb")
+	sslmode := getEnvOrDefault("POSTGRES_SSLMODE", "disable")
+	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s", host, port, user, pass, dbname, sslmode)
 }
 
 // getDSN constructs the database connection string from environment variables

@@ -6,19 +6,21 @@ import (
 
 // Server holds all dependencies and HTTP handlers for the application.
 type Server struct {
-	userRepository UserRepository      // Handles user data operations
-	passwordHasher PasswordHasher      // Handles password hashing and verification
-	jwtManager     JWTManager          // Handles JWT creation and validation
-	httpMux        *http.ServeMux      // HTTP request multiplexer
+	userRepository  UserRepository      // Handles user data operations
+	orderRepository OrderRepository     // Handles order data operations
+	passwordHasher  PasswordHasher      // Handles password hashing and verification
+	jwtManager      JWTManager          // Handles JWT creation and validation
+	httpMux         *http.ServeMux      // HTTP request multiplexer
 }
 
 // NewServer creates a new Server instance with all routes and dependencies configured.
-func NewServer(userRepository UserRepository, passwordHasher PasswordHasher, jwtManager JWTManager) *Server {
+func NewServer(userRepository UserRepository, orderRepository OrderRepository, passwordHasher PasswordHasher, jwtManager JWTManager) *Server {
     srv := &Server{
-		userRepository: userRepository,
-		passwordHasher: passwordHasher,
-		jwtManager:     jwtManager,
-		httpMux:        http.NewServeMux(),
+		userRepository:  userRepository,
+		orderRepository: orderRepository,
+		passwordHasher:  passwordHasher,
+		jwtManager:      jwtManager,
+		httpMux:         http.NewServeMux(),
 	}
 	srv.registerRoutes()
     return srv
@@ -39,6 +41,10 @@ func (srv *Server) registerRoutes() {
 	// Authentication endpoints
 	srv.httpMux.HandleFunc("POST /register", srv.handleRegister())
 	srv.httpMux.HandleFunc("POST /login", srv.handleLogin())
+
+	// Orders endpoint
+	srv.httpMux.HandleFunc("GET /orders/", srv.handleGetOrdersByUsername())
+	srv.httpMux.HandleFunc("POST /orders/", srv.handleCreateOrder())
 
 	// Protected endpoint (requires authentication)
 	srv.httpMux.Handle("GET /protected", srv.authMiddleware(http.HandlerFunc(srv.handleProtected())))

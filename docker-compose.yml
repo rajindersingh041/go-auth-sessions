@@ -11,6 +11,19 @@ services:
       CLICKHOUSE_DB: default
     volumes:
       - clickhouse_data:/var/lib/clickhouse
+  postgres:
+    image: postgres:15
+    container_name: postgres-server
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: mysecretpassword
+      POSTGRES_DB: authdb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
 volumes:
   clickhouse_data:
+    driver: local
+  postgres_data:
     driver: local

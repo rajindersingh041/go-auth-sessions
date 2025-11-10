@@ -87,7 +87,7 @@ func (srv *Server) handleLogin() http.HandlerFunc {
 			return
 		}
 
-	// Find user with timeout context
+		// Find user with timeout context
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 
@@ -133,5 +133,82 @@ func (srv *Server) handleProtected() http.HandlerFunc {
 			"message":  "This is a protected endpoint",
 			"username": username,
 		})
+	}
+}
+
+// handleGetOrdersByUsername returns a handler to fetch orders for a given username.
+func (srv *Server) handleGetOrdersByUsername() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Extract username from URL path: /orders/{username}
+		username := ""
+		if len(r.URL.Path) > len("/orders/") {
+			username = r.URL.Path[len("/orders/"):]
+		}
+		if username == "" {
+			respondError(w, http.StatusBadRequest, "Username required in path")
+			return
+		}
+
+		ctx := r.Context()
+		user, err := srv.userRepository.FindByUsername(ctx, username)
+		if err != nil || user == nil {
+			respondError(w, http.StatusNotFound, "User not found")
+			return
+		}
+
+		orders, err := srv.orderRepository.GetOrdersByUserID(ctx, user.UserID)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, "Failed to fetch orders")
+			return
+		}
+
+		respondJSON(w, http.StatusOK, orders)
+	}
+}
+
+// handleCreateOrder returns a handler to create an order for a given username.
+func (srv *Server) handleCreateOrder() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		username := ""
+		if len(r.URL.Path) > len("/orders/") {
+			username = r.URL.Path[len("/orders/"):]
+		}
+		if username == "" {
+			respondError(w, http.StatusBadRequest, "Username required in path")
+			return
+		}
+
+		ctx := r.Context()
+		user, err := srv.userRepository.FindByUsername(ctx, username)
+		if err != nil || user == nil {
+			respondError(w, http.StatusNotFound, "User not found")
+			return
+		}
+
+		type request struct {
+			Item     string `json:"item"`
+			Quantity int    `json:"quantity"`
+		}
+		var req request
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondError(w, http.StatusBadRequest, "Invalid request body")
+			return
+		}
+		if req.Item == "" || req.Quantity <= 0 {
+			respondError(w, http.StatusBadRequest, "Item and positive quantity required")
+			return
+		}
+
+		order := &Order{
+			UserID:   user.UserID,
+			Item:     req.Item,
+			Quantity: req.Quantity,
+			CreatedAt: time.Now().Format(time.RFC3339),
+		}
+		if err := srv.orderRepository.Create(ctx, order); err != nil {
+			respondError(w, http.StatusInternalServerError, "Failed to create order")
+			return
+		}
+		respondJSON(w, http.StatusCreated, map[string]string{"status": "order created"})
 	}
 }
