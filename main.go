@@ -10,59 +10,57 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"github.com/rajindersingh041/go-auth-sessions/order"
+	"github.com/rajindersingh041/go-auth-sessions/user"
 )
 
 func main() {
-	// Load .env file if present
+	// Load environment variables from .env file
 	_ = godotenv.Load()
-	// Initialize database
+
+	// Initialize database connection
 	db, err := InitDB()
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 	defer db.Close()
 
-	// Select repository implementation based on DB_DRIVER env variable
+	// Get database driver from environment
 	dbDriver := getEnv("DB_DRIVER", "clickhouse")
-	var userRepo UserRepository
-	var orderRepo OrderRepository
-	switch dbDriver {
-	case "clickhouse":
-		userRepo = NewClickHouseUserRepository(db)
-		orderRepo = NewClickHouseOrderRepository(db)
-	case "postgres":
-		userRepo = NewPostgresUserRepository(db)
-		orderRepo = NewPostgresOrderRepository(db)
-	default:
-		log.Fatalf("Unsupported DB_DRIVER: %s", dbDriver)
-	}
+	log.Printf("Using database driver: %s", dbDriver)
 
-	// Create password hasher and JWT manager
-	passwordHasher := BcryptPasswordHasher{}
-	jwtManager := SimpleJWTManager{}
+	// Create dependency injection container with all services
+	container := NewContainer(db, dbDriver)
+	defer container.Close()
 
-	// Create and configure server
-	server := NewServer(userRepo, orderRepo, passwordHasher, jwtManager)
+	// Create HTTP handlers
+	userHandler := user.NewHandler(container.UserService, container.JWTManager)
+	orderHandler := order.NewHandler(container.OrderService, container.UserService)
+
+	// Setup HTTP server with routes
+	server := setupServer(userHandler, orderHandler)
 
 	// Get port from environment
 	port := getEnv("PORT", "8080")
+	log.Printf("Starting server on port %s...", port)
 
-	// Configure HTTP server with timeouts
+	// Configure HTTP server with timeouts and security settings
 	httpServer := &http.Server{
 		Addr:         ":" + port,
-		Handler:      server.Router(),
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		Handler:      server,
+		ReadTimeout:  15 * time.Second,  // Maximum duration for reading the entire request
+		WriteTimeout: 15 * time.Second,  // Maximum duration before timing out writes
+		IdleTimeout:  60 * time.Second,  // Maximum duration to wait for the next request
 	}
 
-	// Start server in goroutine
+	// Start server in a goroutine for graceful shutdown
 	go func() {
-		log.Printf("Starting server on port %s...", port)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Server error: %v", err)
 		}
 	}()
+
+	log.Println("Server started successfully. Press Ctrl+C to stop.")
 
 	// Wait for interrupt signal for graceful shutdown
 	quit := make(chan os.Signal, 1)
@@ -82,9 +80,57 @@ func main() {
 	log.Println("Server stopped gracefully")
 }
 
+// setupServer configures HTTP routes and middleware
+func setupServer(userHandler *user.Handler, orderHandler *order.Handler) http.Handler {
+	mux := http.NewServeMux()
+
+	// Health check endpoint
+	mux.HandleFunc("GET /health", handleHealth())
+
+	// Register domain-specific routes
+	userHandler.RegisterRoutes(mux)
+	orderHandler.RegisterRoutes(mux)
+
+	// Apply global middleware: logging, recovery, CORS, etc.
+	handler := globalLoggingMiddleware(globalRecoveryMiddleware(mux))
+	return handler
+}
+
+// handleHealth returns a simple health check endpoint
+func handleHealth() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok","timestamp":"` + time.Now().Format(time.RFC3339) + `"}`))
+	}
+}
+
+// getEnv retrieves an environment variable or returns a default value
 func getEnv(key, fallback string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
 	}
 	return fallback
+}
+
+// globalLoggingMiddleware logs all incoming requests
+func globalLoggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		next.ServeHTTP(w, r)
+		log.Printf("%s %s %s %v", r.Method, r.RequestURI, r.RemoteAddr, time.Since(start))
+	})
+}
+
+// globalRecoveryMiddleware recovers from panics and returns 500 status
+func globalRecoveryMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if err := recover(); err != nil {
+				log.Printf("Panic: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
 }
