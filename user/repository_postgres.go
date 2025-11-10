@@ -52,6 +52,22 @@ func (r *PostgresRepository) FindByUsername(ctx context.Context, username string
 	return &user, nil
 }
 
+func (r *PostgresRepository) FindByID(ctx context.Context, userID uint64) (*User, error) {
+	if err := r.ensureUsersTable(ctx); err != nil {
+		return nil, err
+	}
+	var user User
+	query := "SELECT user_id, username, password_hash FROM users WHERE user_id = $1 LIMIT 1"
+	err := r.db.QueryRowContext(ctx, query, userID).Scan(&user.UserID, &user.Username, &user.PasswordHash)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
 func (r *PostgresRepository) FindUserID(ctx context.Context, username string) (uint64, error) {
 	if err := r.ensureUsersTable(ctx); err != nil {
 		return 0, err

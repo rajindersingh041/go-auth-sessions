@@ -43,6 +43,23 @@ func (r *ClickHouseRepository) FindByUsername(ctx context.Context, username stri
 	return &user, nil
 }
 
+func (r *ClickHouseRepository) FindByID(ctx context.Context, userID uint64) (*User, error) {
+	var user User
+	query := "SELECT user_id, username, password_hash FROM users WHERE user_id = ? LIMIT 1"
+	err := r.db.QueryRowContext(ctx, query, userID).Scan(
+		&user.UserID,
+		&user.Username,
+		&user.PasswordHash,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("user not found")
+		}
+		return nil, fmt.Errorf("failed to query user: %w", err)
+	}
+	return &user, nil
+}
+
 func (r *ClickHouseRepository) FindUserID(ctx context.Context, username string) (uint64, error) {
 	var userID uint64
 	query := "SELECT user_id FROM users WHERE username = ? LIMIT 1"

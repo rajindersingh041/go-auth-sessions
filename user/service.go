@@ -10,6 +10,7 @@ type Service interface {
 	CreateUser(ctx context.Context, req CreateUserRequest) error
 	AuthenticateUser(ctx context.Context, req LoginRequest) (*User, error)
 	GetUserByUsername(ctx context.Context, username string) (*User, error)
+	GetUserByID(ctx context.Context, userID uint64) (*User, error)
 }
 
 // PasswordHasher interface for password hashing operations
@@ -88,4 +89,12 @@ func (s *service) GetUserByUsername(ctx context.Context, username string) (*User
 		return nil, fmt.Errorf("username is required")
 	}
 	return s.repo.FindByUsername(ctx, username)
+}
+
+// GetUserByID retrieves a user by ID
+func (s *service) GetUserByID(ctx context.Context, userID uint64) (*User, error) {
+	if userID == 0 {
+		return nil, fmt.Errorf("user ID is required")
+	}
+	return s.repo.FindByID(ctx, userID)
 }

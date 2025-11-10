@@ -15,6 +15,7 @@ type User struct {
 type Repository interface {
 	Create(ctx context.Context, username, passwordHash string) error
 	FindByUsername(ctx context.Context, username string) (*User, error)
+	FindByID(ctx context.Context, userID uint64) (*User, error)
 	FindUserID(ctx context.Context, username string) (uint64, error)
 	UserExists(ctx context.Context, username string) (bool, error)
 }

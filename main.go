@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"github.com/rajindersingh041/go-auth-sessions/invoice"
 	"github.com/rajindersingh041/go-auth-sessions/order"
+	"github.com/rajindersingh041/go-auth-sessions/product"
 	"github.com/rajindersingh041/go-auth-sessions/user"
 )
 
@@ -33,12 +35,19 @@ func main() {
 	container := NewContainer(db, dbDriver)
 	defer container.Close()
 
+	// Initialize sample products
+	if err := container.ProductService.InitializeSampleProducts(context.Background()); err != nil {
+		log.Printf("Warning: Failed to initialize sample products: %v", err)
+	}
+
 	// Create HTTP handlers
 	userHandler := user.NewHandler(container.UserService, container.JWTManager)
-	orderHandler := order.NewHandler(container.OrderService, container.UserService)
+	orderHandler := order.NewHandler(container.OrderService, container.UserService, container.JWTManager)
+	productHandler := product.NewHandler(container.ProductService, container.JWTManager)
+	invoiceHandler := invoice.NewHandler(container.InvoiceService, container.JWTManager)
 
 	// Setup HTTP server with routes
-	server := setupServer(userHandler, orderHandler)
+	server := setupServer(userHandler, orderHandler, productHandler, invoiceHandler)
 
 	// Get port from environment
 	port := getEnv("PORT", "8080")
@@ -81,7 +90,7 @@ func main() {
 }
 
 // setupServer configures HTTP routes and middleware
-func setupServer(userHandler *user.Handler, orderHandler *order.Handler) http.Handler {
+func setupServer(userHandler *user.Handler, orderHandler *order.Handler, productHandler *product.Handler, invoiceHandler *invoice.Handler) http.Handler {
 	mux := http.NewServeMux()
 
 	// Health check endpoint
@@ -90,6 +99,8 @@ func setupServer(userHandler *user.Handler, orderHandler *order.Handler) http.Ha
 	// Register domain-specific routes
 	userHandler.RegisterRoutes(mux)
 	orderHandler.RegisterRoutes(mux)
+	productHandler.RegisterRoutes(mux)
+	invoiceHandler.RegisterRoutes(mux)
 
 	// Apply global middleware: logging, recovery, CORS, etc.
 	handler := globalLoggingMiddleware(globalRecoveryMiddleware(mux))
