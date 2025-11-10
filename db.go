@@ -3,91 +3,169 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
+	"os"
+	"time"
 
 	_ "github.com/ClickHouse/clickhouse-go/v2"
 )
 
-const (
-	clickhouseDSN = "tcp://localhost:9000?username=default&password=MyPassword2025"
-)
+// User represents a user in the database
+type User struct {
+	UserID       uint64
+	Username     string
+	PasswordHash string
+}
 
+// UserRepository handles all database operations for users
+type UserRepository struct {
+	db *sql.DB
+}
 
-var dbConn *sql.DB
+// NewUserRepository creates a new user repository
+func NewUserRepository(db *sql.DB) *UserRepository {
+	return &UserRepository{db: db}
+}
 
-// initDB connects to ClickHouse and creates the users table.
-func initDB() {
-	var err error
-	dbConn, err = sql.Open("clickhouse", clickhouseDSN)
+// InitDB initializes the ClickHouse connection with proper configuration
+func InitDB() (*sql.DB, error) {
+	dsn := getDSN()
+	log.Print("DSN is ", dsn)
+	db, err := sql.Open("clickhouse", dsn)
 	if err != nil {
-		log.Fatalf("Error connecting to ClickHouse: %v", err)
+		return nil, fmt.Errorf("failed to open connection: %w", err)
 	}
 
-	// Ping to ensure connection is live
-	if err := dbConn.Ping(); err != nil {
-		log.Fatalf("Error pinging ClickHouse: %v", err)
+	// Configure connection pool
+	db.SetMaxOpenConns(10)
+	db.SetMaxIdleConns(5)
+	db.SetConnMaxLifetime(5 * time.Minute)
+	db.SetConnMaxIdleTime(10 * time.Minute)
+
+	// Ping database with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := db.PingContext(ctx); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	log.Println("Connected to ClickHouse successfully.")
+	log.Println("Connected to ClickHouse successfully")
 
-	createUserTable()
+	// Create users table
+	if err := createUserTable(db); err != nil {
+		db.Close()
+		return nil, err
+	}
+
+	return db, nil
 }
 
-func createUserTable() {
-	_, err := dbConn.Exec(`
-	CREATE TABLE IF NOT EXISTS users (
-		user_id UInt64 DEFAULT toUInt64(rand()),
-		username String,
-		password_hash String
-	) ENGINE = MergeTree() ORDER BY user_id`)
+// getDSN constructs the database connection string from environment variables
+func getDSN() string {
+	host := getEnvOrDefault("CLICKHOUSE_HOST", "localhost")
+	port := getEnvOrDefault("CLICKHOUSE_PORT", "9000")
+	user := getEnvOrDefault("CLICKHOUSE_USER", "default")
+	pass := getEnvOrDefault("CLICKHOUSE_PASSWORD", "MyPassword2025")
+
+	return fmt.Sprintf("tcp://%s:%s?username=%s&password=%s",
+		host, port, user, pass)
+}
+
+// getEnvOrDefault retrieves an environment variable or returns a default value
+func getEnvOrDefault(key, fallback string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return fallback
+}
+
+// createUserTable creates the users table if it doesn't exist
+func createUserTable(db *sql.DB) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	query := `
+		CREATE TABLE IF NOT EXISTS users (
+			user_id UInt64 DEFAULT toUInt64(rand()),
+			username String,
+			password_hash String
+		) ENGINE = MergeTree() 
+		ORDER BY user_id
+	`
+
+	_, err := db.ExecContext(ctx, query)
+	if err != nil {
+		return fmt.Errorf("failed to create users table: %w", err)
+	}
+
+	log.Println("Users table ensured")
+	return nil
+}
+
+// Create inserts a new user into the database
+func (r *UserRepository) Create(ctx context.Context, username, passwordHash string) error {
+	query := "INSERT INTO users (username, password_hash) VALUES (?, ?)"
+
+	_, err := r.db.ExecContext(ctx, query, username, passwordHash)
+	if err != nil {
+		return fmt.Errorf("failed to create user: %w", err)
+	}
+
+	return nil
+}
+
+// FindByUsername retrieves a user by their username
+func (r *UserRepository) FindByUsername(ctx context.Context, username string) (*User, error) {
+	var user User
+
+	query := "SELECT user_id, username, password_hash FROM users WHERE username = ? LIMIT 1"
+	err := r.db.QueryRowContext(ctx, query, username).Scan(
+		&user.UserID,
+		&user.Username,
+		&user.PasswordHash,
+	)
 
 	if err != nil {
-		log.Printf("Issues in creating the table: %v", err)
-		return
-	}
-	log.Println("Users table ensured.")
-}
-
-// createUser inserts a new user into ClickHouse.
-func createUser(username string, passwordHash string) error {
-	_, err := dbConn.Exec("INSERT INTO users (username, password_hash) VALUES (?, ?)",
-		username, passwordHash)
-	return err
-}
-
-// findUserByUsername retrieves a user's password hash from ClickHouse.
-func findUserByUsername(username string) (string, error) {
-	var passwordHash string
-	ctx := context.Background()
-
-	// This query (SELECT...WHERE...LIMIT 1) is very inefficient in ClickHouse
-	// compared to a B-tree indexed table in an OLTP database.
-	row := dbConn.QueryRowContext(ctx, "SELECT password_hash FROM users WHERE username = ? LIMIT 1", username)
-	if err := row.Scan(&passwordHash); err != nil {
-		// clickhouse.ErrNoRows is not a specific error, so we check the text
-		if err.Error() == "sql: no rows in result set" {
-			return "", fmt.Errorf("user not found")
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("user not found")
 		}
-		return "", err
+		return nil, fmt.Errorf("failed to query user: %w", err)
 	}
-	return passwordHash, nil
+
+	return &user, nil
 }
 
-func findUserID(username string) (string, error) {
-	var userID string
-	ctx := context.Background()
+// FindUserID retrieves only the user ID by username
+func (r *UserRepository) FindUserID(ctx context.Context, username string) (uint64, error) {
+	var userID uint64
 
-	// This query (SELECT...WHERE...LIMIT 1) is very inefficient in ClickHouse
-	// compared to a B-tree indexed table in an OLTP database.
-	row := dbConn.QueryRowContext(ctx, "SELECT user_id FROM users WHERE username = ? LIMIT 1", username)
-	if err := row.Scan(&userID); err != nil {
-		// clickhouse.ErrNoRows is not a specific error, so we check the text
-		if err.Error() == "sql: no rows in result set" {
-			return "", fmt.Errorf("user not found")
+	query := "SELECT user_id FROM users WHERE username = ? LIMIT 1"
+	err := r.db.QueryRowContext(ctx, query, username).Scan(&userID)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, fmt.Errorf("user not found")
 		}
-		return "", err
+		return 0, fmt.Errorf("failed to query user ID: %w", err)
 	}
+
 	return userID, nil
 }
 
+// UserExists checks if a user with the given username exists
+func (r *UserRepository) UserExists(ctx context.Context, username string) (bool, error) {
+	var count int
+
+	query := "SELECT count() FROM users WHERE username = ?"
+	err := r.db.QueryRowContext(ctx, query, username).Scan(&count)
+
+	if err != nil {
+		return false, fmt.Errorf("failed to check user existence: %w", err)
+	}
+
+	return count > 0, nil
+}
