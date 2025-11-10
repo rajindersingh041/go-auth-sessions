@@ -1,132 +1,137 @@
 package main
 
-type contextKey2 string
+import (
+	"context"
+	"encoding/json"
+	"log"
+	"net/http"
+	"time"
+)
 
-// // handlers.go
-// package main
+// handleHealth is a simple health check endpoint
+func (s *Server) handleHealth() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		respondJSON(w, http.StatusOK, map[string]string{
+			"status": "ok",
+			"time":   time.Now().Format(time.RFC3339),
+		})
+	}
+}
 
-// import (
-// 	"context"
-// 	"encoding/json"
-// 	"fmt"
-// 	"net/http"
-// 	"strings"
-// )
+// handleRegister processes user registration
+func (s *Server) handleRegister() http.HandlerFunc {
+	type request struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
 
-// // A custom type for our context key
-// type contextKey string
-// const userContextKey = contextKey("username")
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req request
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondError(w, http.StatusBadRequest, "Invalid request body")
+			return
+		}
 
-// func registerHandler(w http.ResponseWriter, r *http.Request) {
-// 	var creds Credentials
-// 	if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
-// 		http.Error(w, "Invalid request body", http.StatusBadRequest)
-// 		return
-// 	}
+		// Validate input
+		if req.Username == "" || req.Password == "" {
+			respondError(w, http.StatusBadRequest, "Username and password are required")
+			return
+		}
 
-// 	if creds.Username == "" || creds.Password == "" {
-// 		http.Error(w, "Username and password are required", http.StatusBadRequest)
-// 		return
-// 	}
+		if len(req.Password) < 8 {
+			respondError(w, http.StatusBadRequest, "Password must be at least 8 characters")
+			return
+		}
 
-// 	hashedPassword, err := hashPassword(creds.Password)
-// 	if err != nil {
-// 		http.Error(w, "Failed to hash password", http.StatusInternalServerError)
-// 		return
-// 	}
+		// Hash password
+		passwordHash, err := hashPassword(req.Password)
+		if err != nil {
+			log.Printf("Failed to hash password: %v", err)
+			respondError(w, http.StatusInternalServerError, "Failed to process password")
+			return
+		}
 
-// 	if err := createUser(creds.Username, hashedPassword); err != nil {
-// 		http.Error(w, "Failed to create user (maybe user exists?)", http.StatusInternalServerError)
-// 		return
-// 	}
+		// Create user with timeout context
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
 
-// 	userID, err := findUserID(creds.Username)
-// 	if err != nil {
-// 		http.Error(w, "Failed to retrieve user ID", http.StatusInternalServerError)
-// 		return
-// 	}
-// 	msg := fmt.Sprintf("New user created: %s (ID: %s)\n", creds.Username, string(userID))
+		if err := s.userRepo.Create(ctx, req.Username, passwordHash); err != nil {
+			log.Printf("Failed to create user: %v", err)
+			respondError(w, http.StatusInternalServerError, "Failed to create user")
+			return
+		}
 
-// 	w.WriteHeader(http.StatusCreated)
+		respondJSON(w, http.StatusCreated, map[string]string{
+			"message": "User registered successfully",
+		})
+	}
+}
 
-// 	w.Write([]byte(msg))
-// }
+// handleLogin processes user authentication
+func (s *Server) handleLogin() http.HandlerFunc {
+	type request struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
 
-// func loginHandler(w http.ResponseWriter, r *http.Request) {
-// 	var creds Credentials
-// 	if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
-// 		http.Error(w, "Invalid request body", http.StatusBadRequest)
-// 		return
-// 	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req request
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondError(w, http.StatusBadRequest, "Invalid request body")
+			return
+		}
 
-// 	// Find the user in ClickHouse
-// 	hashedPassword, err := findUserByUsername(creds.Username)
-// 	if err != nil {
-// 		http.Error(w, "Invalid username", http.StatusUnauthorized)
-// 		return
-// 	}
+		// Validate input
+		if req.Username == "" || req.Password == "" {
+			respondError(w, http.StatusBadRequest, "Username and password are required")
+			return
+		}
 
-// 	// Check the password
-// 	if !checkPasswordHash(creds.Password, hashedPassword) {
-// 		http.Error(w, "Invalid password", http.StatusUnauthorized)
-// 		return
-// 	}
+		// Find user with timeout context
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
 
-// 	// Generate the JWT using the simple method
-// 	tokenString, err := generateJWTSimple(creds.Username)
-// 	if err != nil {
-// 		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
-// 		return
-// 	}
+		user, err := s.userRepo.FindByUsername(ctx, req.Username)
+		if err != nil {
+			log.Printf("Login failed for user %s: %v", req.Username, err)
+			respondError(w, http.StatusUnauthorized, "Invalid credentials")
+			return
+		}
 
-// 	// Send the token back
-// 	w.Header().Set("Content-Type", "application/json")
-// 	json.NewEncoder(w).Encode(map[string]string{
-// 		"token": tokenString,
-// 	})
-// }
+		// Verify password
+		if !checkPasswordHash(req.Password, user.PasswordHash) {
+			respondError(w, http.StatusUnauthorized, "Invalid credentials")
+			return
+		}
 
-// func protectedHandler(w http.ResponseWriter, r *http.Request) {
-// 	// Get the username from the context (set by the middleware)
-// 	username, ok := r.Context().Value(userContextKey).(string)
-// 	if !ok {
-// 		// This should not happen if middleware is set up correctly
-// 		http.Error(w, "Unable to retrieve user from context", http.StatusInternalServerError)
-// 		return
-// 	}
+		// Generate JWT token
+		token, err := generateJWT(user.Username)
+		if err != nil {
+			log.Printf("Failed to generate token: %v", err)
+			respondError(w, http.StatusInternalServerError, "Failed to generate token")
+			return
+		}
 
-// 	w.Write([]byte(fmt.Sprintf("Welcome to the protected area, %s!", username)))
-// }
+		respondJSON(w, http.StatusOK, map[string]string{
+			"token":   token,
+			"message": "Login successful",
+		})
+	}
+}
 
-// // authMiddleware validates the JWT and adds user info to the context.
-// func authMiddleware(next http.Handler) http.Handler {
-// 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-// 		// 1. Get the "Authorization" header
-// 		authHeader := r.Header.Get("Authorization")
-// 		if authHeader == "" {
-// 			http.Error(w, "Authorization header required", http.StatusUnauthorized)
-// 			return
-// 		}
+// handleProtected is an example protected endpoint
+func (s *Server) handleProtected() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Extract username from context (set by authMiddleware)
+		username, ok := r.Context().Value(contextKeyUsername).(string)
+		if !ok {
+			respondError(w, http.StatusUnauthorized, "Unauthorized")
+			return
+		}
 
-// 		// 2. Check for "Bearer " prefix
-// 		parts := strings.Split(authHeader, " ")
-// 		if len(parts) != 2 || parts[0] != "Bearer" {
-// 			http.Error(w, "Authorization header must be in format 'Bearer <token>'", http.StatusUnauthorized)
-// 			return
-// 		}
-// 		tokenString := parts[1]
-
-// 		// 3. Validate the token using the simple method
-// 		claims, err := validateJWTSimple(tokenString)
-// 		if err != nil {
-// 			http.Error(w, fmt.Sprintf("Invalid token: %v", err), http.StatusUnauthorized)
-// 			return
-// 		}
-
-// 		// 4. Add user info to the request context
-// 		ctx := context.WithValue(r.Context(), userContextKey, claims.Username)
-
-// 		// 5. Call the next handler
-// 		next.ServeHTTP(w, r.WithContext(ctx))
-// 	})
-// }
+		respondJSON(w, http.StatusOK, map[string]string{
+			"message":  "This is a protected endpoint",
+			"username": username,
+		})
+	}
+}
