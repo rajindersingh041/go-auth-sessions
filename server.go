@@ -4,38 +4,42 @@ import (
 	"net/http"
 )
 
-// Server holds dependencies and HTTP handlers
+// Server holds all dependencies and HTTP handlers for the application.
 type Server struct {
-	userRepo *UserRepository
-	mux      *http.ServeMux
+	userRepository UserRepository      // Handles user data operations
+	passwordHasher PasswordHasher      // Handles password hashing and verification
+	jwtManager     JWTManager          // Handles JWT creation and validation
+	httpMux        *http.ServeMux      // HTTP request multiplexer
 }
 
-// NewServer creates a new server instance with all routes configured
-func NewServer(userRepo *UserRepository) *Server {
-	s := &Server{
-		userRepo: userRepo,
-		mux:      http.NewServeMux(),
+// NewServer creates a new Server instance with all routes and dependencies configured.
+func NewServer(userRepository UserRepository, passwordHasher PasswordHasher, jwtManager JWTManager) *Server {
+    srv := &Server{
+		userRepository: userRepository,
+		passwordHasher: passwordHasher,
+		jwtManager:     jwtManager,
+		httpMux:        http.NewServeMux(),
 	}
-	s.registerRoutes()
-	return s
+	srv.registerRoutes()
+    return srv
 }
 
-// Router returns the configured HTTP handler with all middleware applied
-func (s *Server) Router() http.Handler {
+// Router returns the configured HTTP handler with all middleware applied.
+func (srv *Server) Router() http.Handler {
 	// Apply global middleware
-	handler := s.loggingMiddleware(s.recoveryMiddleware(s.mux))
+	handler := srv.loggingMiddleware(srv.recoveryMiddleware(srv.httpMux))
 	return handler
 }
 
-// registerRoutes sets up all HTTP routes
-func (s *Server) registerRoutes() {
+// registerRoutes sets up all HTTP routes for the server.
+func (srv *Server) registerRoutes() {
 	// Health check endpoint
-	s.mux.HandleFunc("GET /health", s.handleHealth())
+	srv.httpMux.HandleFunc("GET /health", srv.handleHealth())
 
 	// Authentication endpoints
-	s.mux.HandleFunc("POST /register", s.handleRegister())
-	s.mux.HandleFunc("POST /login", s.handleLogin())
+	srv.httpMux.HandleFunc("POST /register", srv.handleRegister())
+	srv.httpMux.HandleFunc("POST /login", srv.handleLogin())
 
 	// Protected endpoint (requires authentication)
-	s.mux.Handle("GET /protected", s.authMiddleware(http.HandlerFunc(s.handleProtected())))
+	srv.httpMux.Handle("GET /protected", srv.authMiddleware(http.HandlerFunc(srv.handleProtected())))
 }

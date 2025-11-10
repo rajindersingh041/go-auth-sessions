@@ -21,8 +21,12 @@ func main() {
 	// Create user repository
 	userRepo := NewUserRepository(db)
 
+	// Create password hasher and JWT manager
+	passwordHasher := BcryptPasswordHasher{}
+	jwtManager := SimpleJWTManager{}
+
 	// Create and configure server
-	server := NewServer(userRepo)
+	server := NewServer(userRepo, passwordHasher, jwtManager)
 
 	// Get port from environment
 	port := getEnv("PORT", "8080")

@@ -8,8 +8,8 @@ import (
 	"time"
 )
 
-// handleHealth is a simple health check endpoint
-func (s *Server) handleHealth() http.HandlerFunc {
+// handleHealth returns a handler for the health check endpoint.
+func (srv *Server) handleHealth() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		respondJSON(w, http.StatusOK, map[string]string{
 			"status": "ok",
@@ -18,8 +18,8 @@ func (s *Server) handleHealth() http.HandlerFunc {
 	}
 }
 
-// handleRegister processes user registration
-func (s *Server) handleRegister() http.HandlerFunc {
+// handleRegister returns a handler for user registration.
+func (srv *Server) handleRegister() http.HandlerFunc {
 	type request struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
@@ -43,8 +43,8 @@ func (s *Server) handleRegister() http.HandlerFunc {
 			return
 		}
 
-		// Hash password
-		passwordHash, err := hashPassword(req.Password)
+		// Hash password using injected PasswordHasher
+		passwordHash, err := srv.passwordHasher.Hash(req.Password)
 		if err != nil {
 			log.Printf("Failed to hash password: %v", err)
 			respondError(w, http.StatusInternalServerError, "Failed to process password")
@@ -55,7 +55,7 @@ func (s *Server) handleRegister() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 
-		if err := s.userRepo.Create(ctx, req.Username, passwordHash); err != nil {
+		if err := srv.userRepository.Create(ctx, req.Username, passwordHash); err != nil {
 			log.Printf("Failed to create user: %v", err)
 			respondError(w, http.StatusInternalServerError, "Failed to create user")
 			return
@@ -67,8 +67,8 @@ func (s *Server) handleRegister() http.HandlerFunc {
 	}
 }
 
-// handleLogin processes user authentication
-func (s *Server) handleLogin() http.HandlerFunc {
+// handleLogin returns a handler for user authentication (login).
+func (srv *Server) handleLogin() http.HandlerFunc {
 	type request struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
@@ -87,25 +87,25 @@ func (s *Server) handleLogin() http.HandlerFunc {
 			return
 		}
 
-		// Find user with timeout context
+	// Find user with timeout context
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 
-		user, err := s.userRepo.FindByUsername(ctx, req.Username)
+		user, err := srv.userRepository.FindByUsername(ctx, req.Username)
 		if err != nil {
 			log.Printf("Login failed for user %s: %v", req.Username, err)
 			respondError(w, http.StatusUnauthorized, "Invalid credentials")
 			return
 		}
 
-		// Verify password
-		if !checkPasswordHash(req.Password, user.PasswordHash) {
+		// Verify password using injected PasswordHasher
+		if !srv.passwordHasher.Check(req.Password, user.PasswordHash) {
 			respondError(w, http.StatusUnauthorized, "Invalid credentials")
 			return
 		}
 
-		// Generate JWT token
-		token, err := generateJWT(user.Username)
+		// Generate JWT token using injected JWTManager
+		token, err := srv.jwtManager.Generate(user.Username)
 		if err != nil {
 			log.Printf("Failed to generate token: %v", err)
 			respondError(w, http.StatusInternalServerError, "Failed to generate token")
@@ -119,8 +119,8 @@ func (s *Server) handleLogin() http.HandlerFunc {
 	}
 }
 
-// handleProtected is an example protected endpoint
-func (s *Server) handleProtected() http.HandlerFunc {
+// handleProtected returns a handler for a protected endpoint (requires authentication).
+func (srv *Server) handleProtected() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Extract username from context (set by authMiddleware)
 		username, ok := r.Context().Value(contextKeyUsername).(string)

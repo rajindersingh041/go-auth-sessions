@@ -7,18 +7,26 @@ import (
 	"fmt"
 )
 
-// UserRepository handles all database operations for users
-type UserRepository struct {
+// UserRepository defines the interface for user data operations
+type UserRepository interface {
+	Create(ctx context.Context, username, passwordHash string) error
+	FindByUsername(ctx context.Context, username string) (*User, error)
+	FindUserID(ctx context.Context, username string) (uint64, error)
+	UserExists(ctx context.Context, username string) (bool, error)
+}
+
+// userRepositoryImpl is the concrete implementation of UserRepository
+type userRepositoryImpl struct {
 	db *sql.DB
 }
 
 // NewUserRepository creates a new user repository
-func NewUserRepository(db *sql.DB) *UserRepository {
-	return &UserRepository{db: db}
+func NewUserRepository(db *sql.DB) UserRepository {
+	return &userRepositoryImpl{db: db}
 }
 
 // Create inserts a new user into the database
-func (r *UserRepository) Create(ctx context.Context, username, passwordHash string) error {
+func (r *userRepositoryImpl) Create(ctx context.Context, username, passwordHash string) error {
 	query := "INSERT INTO users (username, password_hash) VALUES (?, ?)"
 
 	_, err := r.db.ExecContext(ctx, query, username, passwordHash)
@@ -30,7 +38,7 @@ func (r *UserRepository) Create(ctx context.Context, username, passwordHash stri
 }
 
 // FindByUsername retrieves a user by their username
-func (r *UserRepository) FindByUsername(ctx context.Context, username string) (*User, error) {
+func (r *userRepositoryImpl) FindByUsername(ctx context.Context, username string) (*User, error) {
 	var user User
 
 	query := "SELECT user_id, username, password_hash FROM users WHERE username = ? LIMIT 1"
@@ -51,7 +59,7 @@ func (r *UserRepository) FindByUsername(ctx context.Context, username string) (*
 }
 
 // FindUserID retrieves only the user ID by username
-func (r *UserRepository) FindUserID(ctx context.Context, username string) (uint64, error) {
+func (r *userRepositoryImpl) FindUserID(ctx context.Context, username string) (uint64, error) {
 	var userID uint64
 
 	query := "SELECT user_id FROM users WHERE username = ? LIMIT 1"
@@ -68,7 +76,7 @@ func (r *UserRepository) FindUserID(ctx context.Context, username string) (uint6
 }
 
 // UserExists checks if a user with the given username exists
-func (r *UserRepository) UserExists(ctx context.Context, username string) (bool, error) {
+func (r *userRepositoryImpl) UserExists(ctx context.Context, username string) (bool, error) {
 	var count int
 
 	query := "SELECT count() FROM users WHERE username = ?"

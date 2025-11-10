@@ -22,6 +22,35 @@ Splitting the codebase into focused files helps:
 - Simplify testing and future extension.
 - Reduce merge conflicts in team environments.
 
+
+### Code Comments & Naming
+
+- All exported functions, structs, and interfaces are commented using GoDoc style for clarity.
+- Variable and function names are descriptive and use `camelCase` for variables and `PascalCase` for types and exported functions.
+- Example: `userRepository` for a variable, `UserRepository` for an interface, `passwordHasher` for a dependency, etc.
+
+### Application Workflow (Architecture Diagram)
+
+Below is a high-level workflow of the application. You can view and edit the diagram in [draw.io](https://app.diagrams.net/):
+
+![Application Workflow Diagram](./docs/go-auth-sessions-workflow.png)
+
+**Diagram Description:**
+
+1. **Client** sends HTTP requests (register, login, protected resource) to the server.
+2. **Server** routes requests to the appropriate handler.
+3. **Handlers** use injected dependencies:
+	- `UserRepository` for database operations
+	- `PasswordHasher` for password hashing/verification
+	- `JWTManager` for token generation/validation
+4. **Database** stores user data (ClickHouse).
+5. **JWT** is used for stateless authentication.
+6. **Middleware** handles logging, error recovery, and authentication.
+
+> You can edit or export the diagram using draw.io. Place the PNG or XML file in the `docs/` folder.
+
+---
+
 ### How to Use Each File
 
 - **main.go**: Run this file to start the application. It wires up the server and database.
