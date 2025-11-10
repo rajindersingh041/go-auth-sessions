@@ -198,43 +198,82 @@ curl -X PUT http://localhost:8080/invoices/456 \
 curl -X GET http://localhost:8080/health
 ```
 
+## 🔧 Testing Scripts
+
+The project includes automated testing scripts for easy API validation:
+
+### PowerShell Testing Script
+```powershell
+# Run comprehensive API tests
+.\test_invoice.ps1
+```
+
+### Bash Testing Script  
+```bash
+# Run comprehensive API tests
+./test_invoice.sh
+```
+
+### Manual Testing Script
+```powershell
+# Interactive manual testing
+.\test_manual.ps1
+```
+
+These scripts test the complete workflow:
+1. User registration and login
+2. Product catalog operations
+3. Order creation and management  
+4. Invoice generation and status updates
+
 ## � Service Architecture & Data Flow
 
-### Service Dependencies
+### Service Dependencies & Architecture Flow
 ```
 ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
 │    User     │    │   Product   │    │    Order    │    │   Invoice   │
 │   Service   │    │   Service   │    │   Service   │    │   Service   │
-└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
-       │                   │                   │                   │
+│             │    │             │    │      ↓      │    │      ↓      │
+│  • Auth     │    │  • Catalog  │    │  Validates  │    │  Aggregates │
+│  • Profiles │    │  • Stock    │    │  Products   │    │  Full Data  │
+└─────────────┘    └─────────────┘    └─────────┬───┘    └─────┬───────┘
        │                   │                   │                   │
        └───────────────────┼───────────────────┼───────────────────┘
-                           │                   │
-                           │                   │
+                           │                   │                   
+                           │                   │                   
               ┌────────────▼───────────────────▼────────────┐
               │           Service Dependencies              │
-              │  • Orders validate against Products        │
-              │  • Invoices need Orders, Products, Users   │
-              │  • All services use JWT from Auth          │
+              │  • Orders validate product availability    │
+              │  • Invoices aggregate Order + Product data │
+              │  • All protected endpoints use JWT Auth    │
+              │  • Products have public read access        │
               └────────────────────────────────────────────┘
 ```
 
-### Business Flow
-1. **User Registration/Login** → JWT token generation
-2. **Product Catalog** → Sample products seeded automatically  
-3. **Order Creation** → Validates product exists and is in stock
-4. **Invoice Generation** → Creates detailed invoice from order
-5. **Order/Invoice Management** → Status tracking and updates
+### Complete Business Flow
+1. **User Registration/Login** → JWT token generation and authentication
+2. **Product Catalog Management** → Sample products auto-seeded, public catalog access
+3. **Order Creation** → Validates product exists, in stock, and calculates totals
+4. **Invoice Generation** → Creates detailed invoice with product details and pricing
+5. **Order/Invoice Tracking** → Status updates and comprehensive management
+6. **Multi-Database Support** → PostgreSQL and ClickHouse implementations
 
 ### Database Schema Relationships
 ```sql
-users (user_id, username, password_hash)
+users (user_id, username, password_hash, created_at)
   ↓
-orders (order_id, user_id, product_id, quantity) 
+orders (order_id, user_id, items_json, subtotal, tax, total, status, created_at)
   ↓                            ↑
-invoices (invoice_id, order_id, user_id, items_json)
+invoices (invoice_id, order_id, user_id, invoice_number, items_json, 
+          subtotal, tax, total, status, created_at, due_date)
                                 ↑
-products (product_id, name, price, in_stock)
+products (product_id, name, description, price, category, in_stock, created_at)
+
+Foreign Key Relationships:
+- orders.user_id → users.user_id
+- invoices.order_id → orders.order_id  
+- invoices.user_id → users.user_id
+- order items reference products.product_id
 ```
 
 ## �🗄️ Database Support
@@ -265,6 +304,7 @@ POSTGRES_DB=authdb
 
 ## 🧪 Testing
 
+### Unit Testing
 ```bash
 # Run all tests
 go test ./...
@@ -278,13 +318,23 @@ go test ./order/...
 go test ./product/...
 go test ./invoice/...
 ```
-2. Add models.go, service.go, handler.go  
-3. Implement repository interfaces for each database
-4. Register routes in main.go
-5. Add to dependency injection container
-```
 
-See **[SERVICE_GUIDE.md](SERVICE_GUIDE.md)** for detailed step-by-step instructions.
+### Integration Testing
+The project includes comprehensive integration test scripts:
+- `test_invoice.ps1` - PowerShell script for complete workflow testing
+- `test_invoice.sh` - Bash script for complete workflow testing
+- `test_manual.ps1` - Interactive manual testing script
+
+## 🚀 Adding New Services
+
+### Quick Steps
+1. Create domain directory (e.g., `shipping/`)
+2. Add `models.go`, `service.go`, `handler.go`  
+3. Implement repository interfaces for each database
+4. Register routes in `main.go`
+5. Add to dependency injection container
+
+See **[SERVICE_GUIDE.md](docs/SERVICE_GUIDE.md)** for detailed step-by-step instructions.
 
 ## 🏛️ Complete Service Architecture
 

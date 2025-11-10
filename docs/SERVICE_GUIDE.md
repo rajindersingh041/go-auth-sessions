@@ -4,7 +4,9 @@ This guide explains how to add new business domains/services to the Go Auth Sess
 
 ## 📋 Overview
 
-The application follows a **domain-driven design** with each service being completely self-contained. To add a new service, you'll need to create the complete domain structure and wire it into the dependency injection system.
+The application follows **domain-driven design** with complete service separation. Each domain (User, Product, Order, Invoice) is completely self-contained with its own models, service logic, HTTP handlers, and database repositories.
+
+**Current Architecture**: 4 complete domains with PostgreSQL and ClickHouse support, JWT authentication, and comprehensive business logic.
 
 ## 🚀 Step-by-Step Guide
 
@@ -18,7 +20,7 @@ mkdir shipping
 
 ### Step 2: Create Domain Models (`models.go`)
 
-Define your entities, DTOs, and repository interface:
+**Based on current patterns in the codebase**, define your entities, DTOs, and repository interface:
 
 ```go
 package shipping
@@ -29,29 +31,32 @@ import "context"
 type Shipping struct {
     ShippingID  uint64  `json:"shipping_id"`
     OrderID     uint64  `json:"order_id"`
+    UserID      uint64  `json:"user_id"`      // Link to user for tracking
     Address     string  `json:"address"`
     TrackingID  string  `json:"tracking_id"`
-    Status      string  `json:"status"` // "pending", "shipped", "delivered"
+    Status      string  `json:"status"`       // "pending", "shipped", "delivered", "cancelled"
     Cost        float64 `json:"cost"`
     CreatedAt   string  `json:"created_at"`
+    EstimatedDelivery string `json:"estimated_delivery,omitempty"`
     DeliveredAt string  `json:"delivered_at,omitempty"`
 }
 
 // Repository defines the interface for shipping data operations
+// Pattern: All repositories have similar CRUD interfaces
 type Repository interface {
     Create(ctx context.Context, shipping *Shipping) error
     GetByID(ctx context.Context, shippingID uint64) (*Shipping, error)
     GetByOrderID(ctx context.Context, orderID uint64) (*Shipping, error)
+    GetByUserID(ctx context.Context, userID uint64) ([]Shipping, error) // Get user's shipments
     UpdateStatus(ctx context.Context, shippingID uint64, status string) error
 }
 
-// CreateShippingRequest represents the request to create a shipping record
+// Request/Response DTOs - Pattern: Clear separation of input/output structures
 type CreateShippingRequest struct {
     OrderID uint64 `json:"order_id"`
     Address string `json:"address"`
 }
 
-// UpdateShippingStatusRequest represents the request to update shipping status
 type UpdateShippingStatusRequest struct {
     Status string `json:"status"`
 }
@@ -59,7 +64,7 @@ type UpdateShippingStatusRequest struct {
 
 ### Step 3: Create Business Service (`service.go`)
 
-Implement your business logic and service interface:
+**Following the established service patterns** (see `invoice/service.go` for reference):
 
 ```go
 package shipping
@@ -71,32 +76,41 @@ import (
     "math/rand"
     "strconv"
 
+    // Import dependencies - Pattern: Services depend on other services via interfaces
     "github.com/rajindersingh041/go-auth-sessions/order"
+    "github.com/rajindersingh041/go-auth-sessions/user"
 )
 
 // Service defines the business logic interface for shipping operations
+// Pattern: Clean interface defining all business operations
 type Service interface {
     CreateShipping(ctx context.Context, req CreateShippingRequest) (*Shipping, error)
     GetShippingByID(ctx context.Context, shippingID uint64) (*Shipping, error)
     GetShippingByOrderID(ctx context.Context, orderID uint64) (*Shipping, error)
+    GetShippingsByUserID(ctx context.Context, userID uint64) ([]Shipping, error)
     UpdateShippingStatus(ctx context.Context, shippingID uint64, status string) error
 }
 
 // service implements the Service interface
+// Pattern: Private struct implementing public interface
 type service struct {
     repo         Repository
-    orderService order.Service // Dependency on order service
+    orderService order.Service // Cross-service dependencies
+    userService  user.Service  // For validation and data enrichment
 }
 
 // NewService creates a new shipping service
-func NewService(repo Repository, orderService order.Service) Service {
+// Pattern: Constructor function for dependency injection
+func NewService(repo Repository, orderService order.Service, userService user.Service) Service {
     return &service{
         repo:         repo,
         orderService: orderService,
+        userService:  userService,
     }
 }
 
 // CreateShipping creates a new shipping record
+// Pattern: Comprehensive validation + business logic + error handling
 func (s *service) CreateShipping(ctx context.Context, req CreateShippingRequest) (*Shipping, error) {
     // Validate input
     if req.OrderID == 0 || req.Address == "" {
@@ -696,6 +710,119 @@ CREATE TABLE shipping (
     delivered_at String
 ) ENGINE = MergeTree()
 ORDER BY shipping_id;
+```
+
+### Step 8: Create HTTP Handler (`handler.go`)
+
+**Following current handler patterns** (reference: `invoice/handler.go`):
+
+```go
+package shipping
+
+import (
+    "encoding/json"
+    "fmt"
+    "log"
+    "net/http"
+    "strconv"
+    "strings"
+
+    "github.com/rajindersingh041/go-auth-sessions/auth"
+)
+
+// Handler handles HTTP requests for shipping operations
+type Handler struct {
+    service    Service
+    jwtManager auth.JWTManager
+}
+
+// NewHandler creates a new shipping handler
+func NewHandler(service Service, jwtManager auth.JWTManager) *Handler {
+    return &Handler{
+        service:    service,
+        jwtManager: jwtManager,
+    }
+}
+
+// RegisterRoutes registers all shipping-related routes
+func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
+    mux.Handle("POST /shipping", h.requireAuth(http.HandlerFunc(h.handleCreateShipping())))
+    mux.Handle("GET /shipping/", h.requireAuth(http.HandlerFunc(h.handleGetShipping())))
+    mux.Handle("PUT /shipping/", h.requireAuth(http.HandlerFunc(h.handleUpdateShippingStatus())))
+}
+
+// Standard JWT middleware (same pattern as other handlers)
+func (h *Handler) requireAuth(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        authHeader := r.Header.Get("Authorization")
+        if authHeader == "" {
+            respondError(w, http.StatusUnauthorized, "Authorization header required")
+            return
+        }
+
+        tokenString := strings.Replace(authHeader, "Bearer ", "", 1)
+        username, err := h.jwtManager.ValidateToken(tokenString)
+        if err != nil {
+            respondError(w, http.StatusUnauthorized, "Invalid token")
+            return
+        }
+
+        log.Printf("Authenticated user: %s for %s %s", username, r.Method, r.URL.Path)
+        next.ServeHTTP(w, r)
+    })
+}
+
+// Handler implementations...
+func (h *Handler) handleCreateShipping() http.HandlerFunc {
+    return func(w http.ResponseWriter, r *http.Request) {
+        var req CreateShippingRequest
+        if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+            respondError(w, http.StatusBadRequest, "Invalid JSON payload")
+            return
+        }
+
+        shipping, err := h.service.CreateShipping(r.Context(), req)
+        if err != nil {
+            respondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create shipping: %v", err))
+            return
+        }
+
+        respondJSON(w, http.StatusCreated, shipping)
+    }
+}
+
+// Helper functions (consistent across all handlers)
+func respondJSON(w http.ResponseWriter, status int, data interface{}) {
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(status)
+    json.NewEncoder(w).Encode(data)
+}
+
+func respondError(w http.ResponseWriter, status int, message string) {
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(status)
+    json.NewEncoder(w).Encode(map[string]string{"error": message})
+}
+```
+
+### Step 9: Update Container and Main
+
+**Add to `container.go`**:
+```go
+import "github.com/rajindersingh041/go-auth-sessions/shipping"
+
+// Add to Container struct
+ShippingService shipping.Service
+
+// Add to NewContainer function  
+shippingRepo := // ... create based on DB_DRIVER
+shippingService := shipping.NewService(shippingRepo, orderService, userService)
+```
+
+**Add to `main.go`**:
+```go
+shippingHandler := shipping.NewHandler(container.ShippingService, container.JWTManager)
+// Register routes in setupServer function
 ```
 
 ## ✅ Verification Checklist
