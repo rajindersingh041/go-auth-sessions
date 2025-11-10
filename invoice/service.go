@@ -57,36 +57,36 @@ func (s *service) CreateInvoiceFromOrder(ctx context.Context, orderID uint64) (*
 		return nil, fmt.Errorf("failed to get order details: %w", err)
 	}
 
-	// Get product details
-	productDetails, err := s.productService.GetProductByID(ctx, orderDetails.ProductID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get product details: %w", err)
-	}
-
 	// Get user details 
 	userDetails, err := s.userService.GetUserByID(ctx, orderDetails.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user details: %w", err)
 	}
 
-	// Calculate invoice totals
-	itemPrice := productDetails.Price
-	quantity := float64(orderDetails.Quantity)
-	subtotal := itemPrice * quantity
-	tax := subtotal * 0.1 // 10% tax
-	total := subtotal + tax
+	// Create invoice items from order items
+	var invoiceItems []InvoiceItem
+	for _, orderItem := range orderDetails.Items {
+		// Get product details for each item
+		productDetails, err := s.productService.GetProductByID(ctx, orderItem.ProductID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get product details for product %d: %w", orderItem.ProductID, err)
+		}
 
-	// Create invoice items
-	items := []InvoiceItem{
-		{
-			ProductID:   productDetails.ProductID,
+		invoiceItem := InvoiceItem{
+			ProductID:   orderItem.ProductID,
 			ProductName: productDetails.Name,
 			Description: productDetails.Description,
-			Quantity:    orderDetails.Quantity,
-			UnitPrice:   itemPrice,
-			TotalPrice:  itemPrice * quantity,
-		},
+			Quantity:    orderItem.Quantity,
+			UnitPrice:   orderItem.UnitPrice,
+			TotalPrice:  orderItem.Total,
+		}
+		invoiceItems = append(invoiceItems, invoiceItem)
 	}
+
+	// Use order totals (already calculated)
+	subtotal := orderDetails.Subtotal
+	tax := orderDetails.Tax
+	total := orderDetails.Total
 
 	// Generate invoice number
 	invoiceNumber := s.generateInvoiceNumber()
@@ -97,7 +97,7 @@ func (s *service) CreateInvoiceFromOrder(ctx context.Context, orderID uint64) (*
 		UserID:        orderDetails.UserID,
 		Username:      userDetails.Username,
 		InvoiceNumber: invoiceNumber,
-		Items:         items,
+		Items:         invoiceItems,
 		Subtotal:      subtotal,
 		Tax:           tax,
 		Total:         total,
@@ -202,12 +202,6 @@ func (s *service) populateInvoiceDetails(ctx context.Context, invoice *Invoice) 
 		return invoice, nil // Return original invoice if we can't get order details
 	}
 
-	// Get product details
-	productDetails, err := s.productService.GetProductByID(ctx, orderDetails.ProductID)
-	if err != nil {
-		return invoice, nil // Return original invoice if we can't get product details
-	}
-
 	// Get user details
 	userDetails, err := s.userService.GetUserByID(ctx, orderDetails.UserID)
 	if err != nil {
@@ -221,26 +215,36 @@ func (s *service) populateInvoiceDetails(ctx context.Context, invoice *Invoice) 
 	if invoice.Username == "" {
 		invoice.Username = userDetails.Username
 	}
+	
+	// Populate invoice items from order items
 	if len(invoice.Items) == 0 {
-		itemPrice := productDetails.Price
-		quantity := float64(orderDetails.Quantity)
-		invoice.Items = []InvoiceItem{
-			{
-				ProductID:   productDetails.ProductID,
+		var invoiceItems []InvoiceItem
+		
+		for _, orderItem := range orderDetails.Items {
+			// Get product details for each item
+			productDetails, err := s.productService.GetProductByID(ctx, orderItem.ProductID)
+			if err != nil {
+				continue // Skip this item if we can't get product details
+			}
+
+			invoiceItem := InvoiceItem{
+				ProductID:   orderItem.ProductID,
 				ProductName: productDetails.Name,
 				Description: productDetails.Description,
-				Quantity:    orderDetails.Quantity,
-				UnitPrice:   itemPrice,
-				TotalPrice:  itemPrice * quantity,
-			},
+				Quantity:    orderItem.Quantity,
+				UnitPrice:   orderItem.UnitPrice,
+				TotalPrice:  orderItem.Total,
+			}
+			invoiceItems = append(invoiceItems, invoiceItem)
 		}
+		invoice.Items = invoiceItems
 	}
+	
+	// Use order totals if invoice totals are not set
 	if invoice.Subtotal == 0 {
-		itemPrice := productDetails.Price
-		quantity := float64(orderDetails.Quantity)
-		invoice.Subtotal = itemPrice * quantity
-		invoice.Tax = invoice.Subtotal * 0.1 // 10% tax
-		invoice.Total = invoice.Subtotal + invoice.Tax
+		invoice.Subtotal = orderDetails.Subtotal
+		invoice.Tax = orderDetails.Tax
+		invoice.Total = orderDetails.Total
 	}
 
 	return invoice, nil

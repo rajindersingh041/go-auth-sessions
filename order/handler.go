@@ -33,10 +33,12 @@ func NewHandler(service Service, userService user.Service, jwtManager auth.JWTMa
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	// All order routes require authentication
 	mux.Handle("GET /orders", h.requireAuth(http.HandlerFunc(h.handleGetOrders())))
-	mux.Handle("POST /orders", h.requireAuth(http.HandlerFunc(h.handleCreateOrderModern())))
-	// Legacy routes for backward compatibility
+	mux.Handle("POST /orders", h.requireAuth(http.HandlerFunc(h.handleCreateOrder())))
+	// Legacy single product order endpoint for backward compatibility
+	mux.Handle("POST /orders/single", h.requireAuth(http.HandlerFunc(h.handleCreateSingleOrder())))
+	// Legacy routes for username-based endpoints
 	mux.Handle("GET /orders/", h.requireAuth(http.HandlerFunc(h.handleGetOrdersByUsername())))
-	mux.Handle("POST /orders/", h.requireAuth(http.HandlerFunc(h.handleCreateOrder())))
+	mux.Handle("POST /orders/", h.requireAuth(http.HandlerFunc(h.handleCreateOrderLegacy())))
 }
 
 // Context key for username
@@ -119,9 +121,9 @@ func (h *Handler) handleGetOrdersByUsername() http.HandlerFunc {
 	}
 }
 
-// handleCreateOrder handles requests to create a new order
+// handleCreateOrderLegacyPath handles requests to create a new order (legacy username-based path)
 // URL pattern: POST /orders/{username}
-func (h *Handler) handleCreateOrder() http.HandlerFunc {
+func (h *Handler) handleCreateOrderLegacyPath() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Extract username from URL path: /orders/{username}
 		username := ""
@@ -221,9 +223,9 @@ func (h *Handler) handleGetOrders() http.HandlerFunc {
 	}
 }
 
-// handleCreateOrderModern handles requests to create a new order using JWT authentication
+// handleCreateOrder handles requests to create a new order with multiple products
 // URL pattern: POST /orders (uses JWT token to identify user)
-func (h *Handler) handleCreateOrderModern() http.HandlerFunc {
+func (h *Handler) handleCreateOrder() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Get username from context (set by requireAuth middleware)
 		username, ok := r.Context().Value(usernameContextKey).(string)
@@ -241,7 +243,7 @@ func (h *Handler) handleCreateOrderModern() http.HandlerFunc {
 			return
 		}
 
-		// Parse request body
+		// Parse request body for multi-product order
 		var req CreateOrderRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			respondError(w, http.StatusBadRequest, "Invalid request body")
@@ -267,6 +269,62 @@ func (h *Handler) handleCreateOrderModern() http.HandlerFunc {
 		respondJSON(w, http.StatusCreated, map[string]interface{}{
 			"message": "Order created successfully",
 			"order":   order,
+			"total_amount": order.Total,
+			"items_count": len(order.Items),
 		})
 	}
+}
+
+// handleCreateSingleOrder handles requests to create a single-product order (legacy compatibility)
+// URL pattern: POST /orders/single (uses JWT token to identify user)
+func (h *Handler) handleCreateSingleOrder() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Get username from context (set by requireAuth middleware)
+		username, ok := r.Context().Value(usernameContextKey).(string)
+		if !ok || username == "" {
+			respondError(w, http.StatusUnauthorized, "User not authenticated")
+			return
+		}
+
+		ctx := r.Context()
+		
+		// Get user to validate existence and get user ID
+		user, err := h.userService.GetUserByUsername(ctx, username)
+		if err != nil || user == nil {
+			respondError(w, http.StatusNotFound, "User not found")
+			return
+		}
+
+		// Parse request body for single product order
+		var req CreateSingleOrderRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondError(w, http.StatusBadRequest, "Invalid request body")
+			return
+		}
+
+		// Create the order
+		order, err := h.service.CreateSingleOrder(ctx, user.UserID, req)
+		if err != nil {
+			// Log the actual error for debugging
+			log.Printf("Single order creation failed: %v", err)
+			
+			// Check if it's a validation error
+			if strings.Contains(err.Error(), "required") || strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "out of stock") {
+				respondError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			respondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create order: %v", err))
+			return
+		}
+
+		respondJSON(w, http.StatusCreated, map[string]interface{}{
+			"message": "Order created successfully",
+			"order":   order,
+		})
+	}
+}
+
+// handleCreateOrderLegacy handles the legacy order creation (same as handleCreateOrderLegacyPath)
+func (h *Handler) handleCreateOrderLegacy() http.HandlerFunc {
+	return h.handleCreateOrderLegacyPath()
 }
