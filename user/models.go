@@ -8,6 +8,7 @@ import (
 type User struct {
 	UserID       uint64
 	Username     string
+	EmailID		 string
 	PasswordHash string
 }
 

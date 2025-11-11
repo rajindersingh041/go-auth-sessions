@@ -3,6 +3,8 @@ package user
 import (
 	"context"
 	"fmt"
+
+	"github.com/rajindersingh041/go-auth-sessions/auth"
 )
 
 // UserService defines the business logic interface for user operations
@@ -13,24 +15,19 @@ type UserService interface {
 	GetUserByID(ctx context.Context, userID uint64) (*User, error)
 }
 
-// PasswordHasher interface for password hashing operations
-type PasswordHasher interface {
-	HashPassword(password string) (string, error)
-	CheckPassword(password, hash string) error
-}
 
 // userService implements the UserService interface
 type userService struct {
 	repo           UserRepository
-	passwordHasher PasswordHasher
+	passwordHasher auth.PasswordHasher
 }
 
 // NewUserService creates a new user service
-func NewUserService(repo UserRepository, passwordHasher PasswordHasher) UserService {
-       return &userService{
-	       repo:           repo,
-	       passwordHasher: passwordHasher,
-       }
+func NewUserService(repo UserRepository, passwordHasher auth.PasswordHasher) UserService {
+	return &userService{
+		repo:           repo,
+		passwordHasher: passwordHasher,
+	}
 }
 
 // CreateUser creates a new user with validation and password hashing

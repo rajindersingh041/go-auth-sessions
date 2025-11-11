@@ -1,7 +1,6 @@
 package order
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -17,72 +16,27 @@ import (
 type Handler struct {
 	service     OrderService
 	userService user.UserService
-	jwtManager  auth.JWTManager
 }
 
 // NewHandler creates a new order handler
-func NewHandler(service OrderService, userService user.UserService, jwtManager auth.JWTManager) *Handler {
-       return &Handler{
-	       service:     service,
-	       userService: userService,
-	       jwtManager:  jwtManager,
-       }
+func NewHandler(service OrderService, userService user.UserService) *Handler {
+	return &Handler{
+		service:     service,
+		userService: userService,
+	}
 }
 
 // RegisterRoutes registers all order-related routes
-func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
-	// All order routes require authentication
-	mux.Handle("GET /orders", h.requireAuth(http.HandlerFunc(h.handleGetOrders())))
-	mux.Handle("POST /orders", h.requireAuth(http.HandlerFunc(h.handleCreateOrder())))
-	// Legacy single product order endpoint for backward compatibility
-	mux.Handle("POST /orders/single", h.requireAuth(http.HandlerFunc(h.handleCreateSingleOrder())))
-	// Legacy routes for username-based endpoints
-	mux.Handle("GET /orders/", h.requireAuth(http.HandlerFunc(h.handleGetOrdersByUsername())))
-	mux.Handle("POST /orders/", h.requireAuth(http.HandlerFunc(h.handleCreateOrderLegacy())))
+func (h *Handler) RegisterRoutes(mux *http.ServeMux, jwtManager auth.JWTManager) {
+	// Register routes with or without authentication as needed
+	mux.Handle("GET /orders", auth.WithJWTAuth(jwtManager, http.HandlerFunc(h.handleGetOrders())))
+	mux.Handle("POST /orders", auth.WithJWTAuth(jwtManager, http.HandlerFunc(h.handleCreateOrder())))
+	mux.Handle("POST /orders/single", auth.WithJWTAuth(jwtManager, http.HandlerFunc(h.handleCreateSingleOrder())))
+	mux.Handle("GET /orders/", auth.WithJWTAuth(jwtManager, http.HandlerFunc(h.handleGetOrdersByUsername())))
+	mux.Handle("POST /orders/", auth.WithJWTAuth(jwtManager, http.HandlerFunc(h.handleCreateOrderLegacy())))
 }
 
-// Context key for username
-type contextKey string
-const usernameContextKey contextKey = "username"
 
-// requireAuth is a middleware that checks for valid JWT token
-func (h *Handler) requireAuth(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Get Authorization header
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			respondError(w, http.StatusUnauthorized, "Authorization header required. Please provide JWT token.")
-			return
-		}
-
-		// Check if it starts with "Bearer "
-		if !strings.HasPrefix(authHeader, "Bearer ") {
-			respondError(w, http.StatusUnauthorized, "Authorization header must start with 'Bearer '. Format: 'Bearer <token>'")
-			return
-		}
-
-		// Extract token
-		token := strings.TrimPrefix(authHeader, "Bearer ")
-		if token == "" {
-			respondError(w, http.StatusUnauthorized, "JWT token is required. Please login first.")
-			return
-		}
-
-		// Validate token
-		username, err := h.jwtManager.ValidateToken(token)
-		if err != nil {
-			respondError(w, http.StatusUnauthorized, "Invalid or expired JWT token. Please login again.")
-			return
-		}
-
-		// Add username to request context for use in handlers  
-		ctx := r.Context()
-		ctx = context.WithValue(ctx, usernameContextKey, username)
-
-		// Call next handler
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
-}
 
 // handleGetOrdersByUsername handles requests to fetch orders by username
 // URL pattern: GET /orders/{username}
@@ -193,8 +147,8 @@ func respondError(w http.ResponseWriter, status int, message string) {
 // URL pattern: GET /orders (uses JWT token to identify user)
 func (h *Handler) handleGetOrders() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Get username from context (set by requireAuth middleware)
-		username, ok := r.Context().Value(usernameContextKey).(string)
+		// Get username from context (set by WithJWTAuth middleware)
+		username, ok := r.Context().Value(auth.UsernameContextKey).(string)
 		if !ok || username == "" {
 			respondError(w, http.StatusUnauthorized, "User not authenticated")
 			return
@@ -227,8 +181,8 @@ func (h *Handler) handleGetOrders() http.HandlerFunc {
 // URL pattern: POST /orders (uses JWT token to identify user)
 func (h *Handler) handleCreateOrder() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Get username from context (set by requireAuth middleware)
-		username, ok := r.Context().Value(usernameContextKey).(string)
+		// Get username from context (set by WithJWTAuth middleware)
+		username, ok := r.Context().Value(auth.UsernameContextKey).(string)
 		if !ok || username == "" {
 			respondError(w, http.StatusUnauthorized, "User not authenticated")
 			return
@@ -279,8 +233,8 @@ func (h *Handler) handleCreateOrder() http.HandlerFunc {
 // URL pattern: POST /orders/single (uses JWT token to identify user)
 func (h *Handler) handleCreateSingleOrder() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Get username from context (set by requireAuth middleware)
-		username, ok := r.Context().Value(usernameContextKey).(string)
+		// Get username from context (set by WithJWTAuth middleware)
+		username, ok := r.Context().Value(auth.UsernameContextKey).(string)
 		if !ok || username == "" {
 			respondError(w, http.StatusUnauthorized, "User not authenticated")
 			return

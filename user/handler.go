@@ -16,10 +16,10 @@ type Handler struct {
 
 // NewHandler creates a new user handler
 func NewHandler(service UserService, jwtManager auth.JWTManager) *Handler {
-       return &Handler{
-	       service:    service,
-	       jwtManager: jwtManager,
-       }
+	return &Handler{
+		service:    service,
+		jwtManager: jwtManager,
+	}
 }
 
 // RegisterRoutes registers all user-related routes

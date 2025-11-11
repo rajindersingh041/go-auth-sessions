@@ -25,55 +25,16 @@ func NewHandler(service ProductService, jwtManager auth.JWTManager) *Handler {
 }
 
 // RegisterRoutes registers all product-related routes
-func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
+func (h *Handler) RegisterRoutes(mux *http.ServeMux, jwtManager auth.JWTManager) {
 	// Public routes (no authentication required)
 	mux.HandleFunc("GET /products", h.handleGetAllProducts())
 	mux.HandleFunc("GET /products/", h.handleGetProductByIDOrCategory())
 	
 	// Protected routes (authentication required)
-	mux.Handle("POST /products", h.requireAuth(http.HandlerFunc(h.handleCreateProduct())))
-	mux.Handle("PUT /products/", h.requireAuth(http.HandlerFunc(h.handleUpdateProductStock())))
+	mux.Handle("POST /products", auth.WithJWTAuth(h.jwtManager, http.HandlerFunc(h.handleCreateProduct())))
+	mux.Handle("PUT /products/", auth.WithJWTAuth(h.jwtManager, http.HandlerFunc(h.handleUpdateProductStock())))
 }
 
-// requireAuth is a middleware that checks for valid JWT token
-func (h *Handler) requireAuth(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Get Authorization header
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			respondError(w, http.StatusUnauthorized, "Authorization header required. Please provide JWT token.")
-			return
-		}
-
-		// Check if it starts with "Bearer "
-		if !strings.HasPrefix(authHeader, "Bearer ") {
-			respondError(w, http.StatusUnauthorized, "Authorization header must start with 'Bearer '. Format: 'Bearer <token>'")
-			return
-		}
-
-		// Extract token
-		token := strings.TrimPrefix(authHeader, "Bearer ")
-		if token == "" {
-			respondError(w, http.StatusUnauthorized, "JWT token is required. Please login first.")
-			return
-		}
-
-		// Validate token
-		username, err := h.jwtManager.ValidateToken(token)
-		if err != nil {
-			respondError(w, http.StatusUnauthorized, "Invalid or expired JWT token. Please login again.")
-			return
-		}
-
-		// Add username to request context for use in handlers
-		ctx := r.Context()
-		// You can add username to context if needed
-		_ = username
-
-		// Call next handler
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
-}
 
 // handleGetAllProducts handles requests to get all products (public)
 func (h *Handler) handleGetAllProducts() http.HandlerFunc {

@@ -26,53 +26,14 @@ func NewHandler(service InvoiceService, jwtManager auth.JWTManager) *Handler {
 }
 
 // RegisterRoutes registers all invoice-related routes
-func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
+func (h *Handler) RegisterRoutes(mux *http.ServeMux, jwtManager auth.JWTManager) {
 	// All invoice routes require authentication
-	mux.Handle("POST /invoices", h.requireAuth(http.HandlerFunc(h.handleCreateInvoice())))
-	mux.Handle("GET /invoices/", h.requireAuth(http.HandlerFunc(h.handleGetInvoice())))
-	mux.Handle("GET /invoices/user/", h.requireAuth(http.HandlerFunc(h.handleGetUserInvoices())))
-	mux.Handle("PUT /invoices/", h.requireAuth(http.HandlerFunc(h.handleUpdateInvoiceStatus())))
+	mux.Handle("POST /invoices", auth.WithJWTAuth(jwtManager, http.HandlerFunc(h.handleCreateInvoice())))
+	mux.Handle("GET /invoices/", auth.WithJWTAuth(jwtManager, http.HandlerFunc(h.handleGetInvoice())))
+	mux.Handle("GET /invoices/user/", auth.WithJWTAuth(jwtManager, http.HandlerFunc(h.handleGetUserInvoices())))
+	mux.Handle("PUT /invoices/", auth.WithJWTAuth(jwtManager, http.HandlerFunc(h.handleUpdateInvoiceStatus())))
 }
 
-// requireAuth is a middleware that checks for valid JWT token
-func (h *Handler) requireAuth(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Get Authorization header
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			respondError(w, http.StatusUnauthorized, "Authorization header required. Please provide JWT token.")
-			return
-		}
-
-		// Check if it starts with "Bearer "
-		if !strings.HasPrefix(authHeader, "Bearer ") {
-			respondError(w, http.StatusUnauthorized, "Authorization header must start with 'Bearer '. Format: 'Bearer <token>'")
-			return
-		}
-
-		// Extract token
-		token := strings.TrimPrefix(authHeader, "Bearer ")
-		if token == "" {
-			respondError(w, http.StatusUnauthorized, "JWT token is required. Please login first.")
-			return
-		}
-
-		// Validate token
-		username, err := h.jwtManager.ValidateToken(token)
-		if err != nil {
-			respondError(w, http.StatusUnauthorized, "Invalid or expired JWT token. Please login again.")
-			return
-		}
-
-		// Add username to request context for use in handlers
-		ctx := r.Context()
-		// You can add username to context if needed
-		_ = username
-
-		// Call next handler
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
-}
 
 // handleCreateInvoice handles requests to create an invoice from an order
 // URL pattern: POST /invoices
