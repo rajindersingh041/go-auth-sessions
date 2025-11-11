@@ -11,7 +11,7 @@ type ClickHouseRepository struct {
 }
 
 // NewClickHouseRepository creates a new ClickHouse order repository
-func NewClickHouseRepository(db *sql.DB) Repository {
+func NewClickHouseRepository(db *sql.DB) OrderRepository {
 	return &ClickHouseRepository{db: db}
 }
 

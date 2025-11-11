@@ -10,16 +10,16 @@ import (
 
 // Handler handles HTTP requests for user operations
 type Handler struct {
-	service    Service
+	service    UserService
 	jwtManager auth.JWTManager
 }
 
 // NewHandler creates a new user handler
-func NewHandler(service Service, jwtManager auth.JWTManager) *Handler {
-	return &Handler{
-		service:    service,
-		jwtManager: jwtManager,
-	}
+func NewHandler(service UserService, jwtManager auth.JWTManager) *Handler {
+       return &Handler{
+	       service:    service,
+	       jwtManager: jwtManager,
+       }
 }
 
 // RegisterRoutes registers all user-related routes

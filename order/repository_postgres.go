@@ -11,7 +11,7 @@ type PostgresRepository struct {
 }
 
 // NewPostgresRepository creates a new PostgreSQL order repository
-func NewPostgresRepository(db *sql.DB) Repository {
+func NewPostgresRepository(db *sql.DB) OrderRepository {
 	return &PostgresRepository{db: db}
 }
 

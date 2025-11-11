@@ -33,20 +33,20 @@ type Container struct {
 	// to perform operations
 	// Each service should ideally depend on interfaces for easier testing and flexibility
 	// Example:
-	// user.Service depends on user.Repository and auth.PasswordHasher interfaces
-	// order.Service depends on order.Repository and product.Service interfaces
-	// product.Service depends on product.Repository interface
-	// invoice.Service depends on invoice.Repository, order.Service, product.Service, and user.Service interfaces
+	// user.UserService depends on user.Repository and auth.PasswordHasher interfaces
+	// order.OrderService depends on order.Repository and product.ProductService interfaces
+	// product.ProductService depends on product.Repository interface
+	// invoice.InvoiceService depends on invoice.Repository, order.OrderService, product.ProductService, and user.UserService interfaces
 	// What is Service?
 	// A Service is a struct that contains business logic methods
 	// It uses repositories to interact with the database
 	// It only purposes to perform operations related to a specific domain
-	// For example, user.Service has methods for user registration, authentication, etc.
+	// For example, user.UserService has methods for user registration, authentication, etc.
 	// It uses user.Repository to perform database operations related to users
-	UserService    user.Service
-	OrderService   order.Service
-	ProductService product.Service
-	InvoiceService invoice.Service
+	UserService    user.UserService
+	OrderService   order.OrderService
+	ProductService product.ProductService
+	InvoiceService invoice.InvoiceService
 
 	// Auth components
 	JWTManager     auth.JWTManager
@@ -78,10 +78,10 @@ func NewContainer(db *sql.DB, dbDriver string) *Container {
 	// for the services to use
 	// Each repository should implement an interface to allow for easy swapping
 	// of implementations (e.g., ClickHouse vs Postgres)
-	var userRepo user.Repository
-	var orderRepo order.Repository
-	var productRepo product.Repository
-	var invoiceRepo invoice.Repository
+	var userRepo user.UserRepository
+	var orderRepo order.OrderRepository
+	var productRepo product.ProductRepository
+	var invoiceRepo invoice.InvoiceRepository
 
 
 	// Initialize repositories based on dbDriver
@@ -107,10 +107,10 @@ func NewContainer(db *sql.DB, dbDriver string) *Container {
 	// productService depends on productRepo
 	// orderService depends on orderRepo and productService
 	// invoiceService depends on invoiceRepo, orderService, productService, and userService	
-	userService := user.NewService(userRepo, passwordHasher)
-	productService := product.NewService(productRepo)
-	orderService := order.NewService(orderRepo, productService)
-	invoiceService := invoice.NewService(invoiceRepo, orderService, productService, userService)
+		userService := user.NewUserService(userRepo, passwordHasher)
+		productService := product.NewProductService(productRepo)
+		orderService := order.NewOrderService(orderRepo, productService)
+		invoiceService := invoice.NewInvoiceService(invoiceRepo, orderService, productService, userService)
 
 	// what is the purpose of newservice?
 	// NewService functions create and return service instances

@@ -12,12 +12,12 @@ import (
 
 // Handler handles HTTP requests for product operations
 type Handler struct {
-	service    Service
+	service    ProductService
 	jwtManager auth.JWTManager
 }
 
 // NewHandler creates a new product handler
-func NewHandler(service Service, jwtManager auth.JWTManager) *Handler {
+func NewHandler(service ProductService, jwtManager auth.JWTManager) *Handler {
 	return &Handler{
 		service:    service,
 		jwtManager: jwtManager,

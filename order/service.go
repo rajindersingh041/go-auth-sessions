@@ -8,30 +8,30 @@ import (
 	"github.com/rajindersingh041/go-auth-sessions/product"
 )
 
-// Service defines the business logic interface for order operations
-type Service interface {
+// OrderService defines the business logic interface for order operations
+type OrderService interface {
 	CreateOrder(ctx context.Context, userID uint64, req CreateOrderRequest) (*Order, error)
 	CreateSingleOrder(ctx context.Context, userID uint64, req CreateSingleOrderRequest) (*Order, error)
 	GetOrdersByUserID(ctx context.Context, userID uint64) ([]Order, error)
 	GetOrderByID(ctx context.Context, orderID uint64) (*Order, error)
 }
 
-// service implements the Service interface
-type service struct {
-	repo           Repository
-	productService product.Service
+// orderService implements the OrderService interface
+type orderService struct {
+	repo           OrderRepository
+	productService product.ProductService
 }
 
-// NewService creates a new order service
-func NewService(repo Repository, productService product.Service) Service {
-	return &service{
+// NewOrderService creates a new order service
+func NewOrderService(repo OrderRepository, productService product.ProductService) OrderService {
+	return &orderService{
 		repo:           repo,
 		productService: productService,
 	}
 }
 
 // CreateOrder creates a new order with multiple products
-func (s *service) CreateOrder(ctx context.Context, userID uint64, req CreateOrderRequest) (*Order, error) {
+func (s *orderService) CreateOrder(ctx context.Context, userID uint64, req CreateOrderRequest) (*Order, error) {
 	if userID == 0 {
 		return nil, fmt.Errorf("valid user ID is required")
 	}
@@ -94,7 +94,7 @@ func (s *service) CreateOrder(ctx context.Context, userID uint64, req CreateOrde
 }
 
 // CreateSingleOrder creates an order with a single product (for backward compatibility)
-func (s *service) CreateSingleOrder(ctx context.Context, userID uint64, req CreateSingleOrderRequest) (*Order, error) {
+func (s *orderService) CreateSingleOrder(ctx context.Context, userID uint64, req CreateSingleOrderRequest) (*Order, error) {
 	// Convert single order to multi-item order
 	multiReq := CreateOrderRequest{
 		Items: []OrderItemRequest{
@@ -108,7 +108,7 @@ func (s *service) CreateSingleOrder(ctx context.Context, userID uint64, req Crea
 }
 
 // GetOrdersByUserID retrieves all orders for a specific user
-func (s *service) GetOrdersByUserID(ctx context.Context, userID uint64) ([]Order, error) {
+func (s *orderService) GetOrdersByUserID(ctx context.Context, userID uint64) ([]Order, error) {
 	if userID == 0 {
 		return nil, fmt.Errorf("valid user ID is required")
 	}
@@ -116,7 +116,7 @@ func (s *service) GetOrdersByUserID(ctx context.Context, userID uint64) ([]Order
 }
 
 // GetOrderByID retrieves a specific order by ID
-func (s *service) GetOrderByID(ctx context.Context, orderID uint64) (*Order, error) {
+func (s *orderService) GetOrderByID(ctx context.Context, orderID uint64) (*Order, error) {
 	if orderID == 0 {
 		return nil, fmt.Errorf("valid order ID is required")
 	}

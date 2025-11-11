@@ -13,12 +13,12 @@ import (
 
 // Handler handles HTTP requests for invoice operations
 type Handler struct {
-	service    Service
+	service    InvoiceService
 	jwtManager auth.JWTManager
 }
 
 // NewHandler creates a new invoice handler
-func NewHandler(service Service, jwtManager auth.JWTManager) *Handler {
+func NewHandler(service InvoiceService, jwtManager auth.JWTManager) *Handler {
 	return &Handler{
 		service:    service,
 		jwtManager: jwtManager,

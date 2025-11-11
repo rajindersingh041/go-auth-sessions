@@ -5,8 +5,8 @@ import (
 	"fmt"
 )
 
-// Service defines the business logic interface for user operations
-type Service interface {
+// UserService defines the business logic interface for user operations
+type UserService interface {
 	CreateUser(ctx context.Context, req CreateUserRequest) error
 	AuthenticateUser(ctx context.Context, req LoginRequest) (*User, error)
 	GetUserByUsername(ctx context.Context, username string) (*User, error)
@@ -19,22 +19,22 @@ type PasswordHasher interface {
 	CheckPassword(password, hash string) error
 }
 
-// service implements the Service interface
-type service struct {
-	repo           Repository
+// userService implements the UserService interface
+type userService struct {
+	repo           UserRepository
 	passwordHasher PasswordHasher
 }
 
-// NewService creates a new user service
-func NewService(repo Repository, passwordHasher PasswordHasher) Service {
-	return &service{
-		repo:           repo,
-		passwordHasher: passwordHasher,
-	}
+// NewUserService creates a new user service
+func NewUserService(repo UserRepository, passwordHasher PasswordHasher) UserService {
+       return &userService{
+	       repo:           repo,
+	       passwordHasher: passwordHasher,
+       }
 }
 
 // CreateUser creates a new user with validation and password hashing
-func (s *service) CreateUser(ctx context.Context, req CreateUserRequest) error {
+func (s *userService) CreateUser(ctx context.Context, req CreateUserRequest) error {
 	// Validate input
 	if req.Username == "" || req.Password == "" {
 		return fmt.Errorf("username and password are required")
@@ -60,7 +60,7 @@ func (s *service) CreateUser(ctx context.Context, req CreateUserRequest) error {
 }
 
 // AuthenticateUser authenticates a user and returns user info if successful
-func (s *service) AuthenticateUser(ctx context.Context, req LoginRequest) (*User, error) {
+func (s *userService) AuthenticateUser(ctx context.Context, req LoginRequest) (*User, error) {
 	// Validate input
 	if req.Username == "" || req.Password == "" {
 		return nil, fmt.Errorf("username and password are required")
@@ -84,7 +84,7 @@ func (s *service) AuthenticateUser(ctx context.Context, req LoginRequest) (*User
 }
 
 // GetUserByUsername retrieves a user by username
-func (s *service) GetUserByUsername(ctx context.Context, username string) (*User, error) {
+func (s *userService) GetUserByUsername(ctx context.Context, username string) (*User, error) {
 	if username == "" {
 		return nil, fmt.Errorf("username is required")
 	}
@@ -92,7 +92,7 @@ func (s *service) GetUserByUsername(ctx context.Context, username string) (*User
 }
 
 // GetUserByID retrieves a user by ID
-func (s *service) GetUserByID(ctx context.Context, userID uint64) (*User, error) {
+func (s *userService) GetUserByID(ctx context.Context, userID uint64) (*User, error) {
 	if userID == 0 {
 		return nil, fmt.Errorf("user ID is required")
 	}

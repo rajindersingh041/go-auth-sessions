@@ -12,7 +12,7 @@ type PostgresRepository struct {
 }
 
 // NewPostgresRepository creates a new PostgreSQL invoice repository
-func NewPostgresRepository(db *sql.DB) Repository {
+func NewPostgresRepository(db *sql.DB) InvoiceRepository {
 	return &PostgresRepository{db: db}
 }
 

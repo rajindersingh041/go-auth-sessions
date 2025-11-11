@@ -17,7 +17,7 @@ type User struct {
 // and other request-scoped values across API boundaries and between processes.
 // This allows for better control over request lifecycles
 // and resource management in database operations.
-type Repository interface {
+type UserRepository interface {
 	Create(ctx context.Context, username, passwordHash string) error
 	FindByUsername(ctx context.Context, username string) (*User, error)
 	FindByID(ctx context.Context, userID uint64) (*User, error)

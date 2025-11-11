@@ -5,13 +5,13 @@ import (
 	"database/sql"
 )
 
-// PostgresRepository implements Repository for PostgreSQL database
+// PostgresRepository implements UserRepository for PostgreSQL database
 type PostgresRepository struct {
 	db *sql.DB
 }
 
 // NewPostgresRepository creates a new PostgreSQL user repository
-func NewPostgresRepository(db *sql.DB) Repository {
+func NewPostgresRepository(db *sql.DB) UserRepository {
 	return &PostgresRepository{db: db}
 }
 

@@ -31,7 +31,7 @@ type InvoiceItem struct {
 }
 
 // Repository defines the interface for invoice data operations
-type Repository interface {
+type InvoiceRepository interface {
 	Create(ctx context.Context, invoice *Invoice) error
 	GetByID(ctx context.Context, invoiceID uint64) (*Invoice, error)
 	GetByOrderID(ctx context.Context, orderID uint64) (*Invoice, error)

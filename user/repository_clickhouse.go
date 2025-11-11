@@ -7,13 +7,13 @@ import (
 	"fmt"
 )
 
-// ClickHouseRepository implements Repository for ClickHouse database
+// ClickHouseRepository implements UserRepository for ClickHouse database
 type ClickHouseRepository struct {
 	db *sql.DB
 }
 
 // NewClickHouseRepository creates a new ClickHouse user repository
-func NewClickHouseRepository(db *sql.DB) Repository {
+func NewClickHouseRepository(db *sql.DB) UserRepository {
 	return &ClickHouseRepository{db: db}
 }
 

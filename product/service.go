@@ -6,8 +6,8 @@ import (
 	"time"
 )
 
-// Service defines the business logic interface for product operations
-type Service interface {
+// ProductService defines the business logic interface for product operations
+type ProductService interface {
 	CreateProduct(ctx context.Context, req CreateProductRequest) error
 	GetAllProducts(ctx context.Context) ([]Product, error)
 	GetProductByID(ctx context.Context, productID uint64) (*Product, error)
@@ -16,20 +16,20 @@ type Service interface {
 	InitializeSampleProducts(ctx context.Context) error
 }
 
-// service implements the Service interface
-type service struct {
-	repo Repository
+// productService implements the ProductService interface
+type productService struct {
+	repo ProductRepository
 }
 
-// NewService creates a new product service
-func NewService(repo Repository) Service {
-	return &service{
+// NewProductService creates a new product service
+func NewProductService(repo ProductRepository) ProductService {
+	return &productService{
 		repo: repo,
 	}
 }
 
 // CreateProduct creates a new product with validation
-func (s *service) CreateProduct(ctx context.Context, req CreateProductRequest) error {
+func (s *productService) CreateProduct(ctx context.Context, req CreateProductRequest) error {
 	// Validate input
 	if req.Name == "" {
 		return fmt.Errorf("product name is required")
@@ -55,12 +55,12 @@ func (s *service) CreateProduct(ctx context.Context, req CreateProductRequest) e
 }
 
 // GetAllProducts retrieves all products
-func (s *service) GetAllProducts(ctx context.Context) ([]Product, error) {
+func (s *productService) GetAllProducts(ctx context.Context) ([]Product, error) {
 	return s.repo.GetAll(ctx)
 }
 
 // GetProductByID retrieves a specific product by ID
-func (s *service) GetProductByID(ctx context.Context, productID uint64) (*Product, error) {
+func (s *productService) GetProductByID(ctx context.Context, productID uint64) (*Product, error) {
 	if productID == 0 {
 		return nil, fmt.Errorf("valid product ID is required")
 	}
@@ -68,7 +68,7 @@ func (s *service) GetProductByID(ctx context.Context, productID uint64) (*Produc
 }
 
 // GetProductsByCategory retrieves products by category
-func (s *service) GetProductsByCategory(ctx context.Context, category string) ([]Product, error) {
+func (s *productService) GetProductsByCategory(ctx context.Context, category string) ([]Product, error) {
 	if category == "" {
 		return nil, fmt.Errorf("category is required")
 	}
@@ -76,7 +76,7 @@ func (s *service) GetProductsByCategory(ctx context.Context, category string) ([
 }
 
 // UpdateProductStock updates the stock status of a product
-func (s *service) UpdateProductStock(ctx context.Context, productID uint64, inStock bool) error {
+func (s *productService) UpdateProductStock(ctx context.Context, productID uint64, inStock bool) error {
 	if productID == 0 {
 		return fmt.Errorf("valid product ID is required")
 	}
@@ -84,6 +84,6 @@ func (s *service) UpdateProductStock(ctx context.Context, productID uint64, inSt
 }
 
 // InitializeSampleProducts creates sample products if none exist
-func (s *service) InitializeSampleProducts(ctx context.Context) error {
+func (s *productService) InitializeSampleProducts(ctx context.Context) error {
 	return s.repo.SeedSampleProducts(ctx)
 }

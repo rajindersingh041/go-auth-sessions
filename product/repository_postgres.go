@@ -13,7 +13,7 @@ type PostgresRepository struct {
 }
 
 // NewPostgresRepository creates a new PostgreSQL product repository
-func NewPostgresRepository(db *sql.DB) Repository {
+func NewPostgresRepository(db *sql.DB) ProductRepository {
 	return &PostgresRepository{db: db}
 }
 

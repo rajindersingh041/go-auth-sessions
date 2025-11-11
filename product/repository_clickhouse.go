@@ -13,7 +13,7 @@ type ClickHouseRepository struct {
 }
 
 // NewClickHouseRepository creates a new ClickHouse product repository
-func NewClickHouseRepository(db *sql.DB) Repository {
+func NewClickHouseRepository(db *sql.DB) ProductRepository {
 	return &ClickHouseRepository{db: db}
 }
 

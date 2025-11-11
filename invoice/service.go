@@ -11,8 +11,8 @@ import (
 	"github.com/rajindersingh041/go-auth-sessions/user"
 )
 
-// Service defines the business logic interface for invoice operations
-type Service interface {
+// InvoiceService defines the business logic interface for invoice operations
+type InvoiceService interface {
 	CreateInvoiceFromOrder(ctx context.Context, orderID uint64) (*Invoice, error)
 	GetInvoiceByID(ctx context.Context, invoiceID uint64) (*Invoice, error)
 	GetInvoiceByOrderID(ctx context.Context, orderID uint64) (*Invoice, error)
@@ -20,17 +20,17 @@ type Service interface {
 	UpdateInvoiceStatus(ctx context.Context, invoiceID uint64, status string) error
 }
 
-// service implements the Service interface
-type service struct {
-	repo           Repository
-	orderService   order.Service
-	productService product.Service
-	userService    user.Service
+// invoiceService implements the InvoiceService interface
+type invoiceService struct {
+	repo           InvoiceRepository
+	orderService   order.OrderService
+	productService product.ProductService
+	userService    user.UserService
 }
 
-// NewService creates a new invoice service
-func NewService(repo Repository, orderService order.Service, productService product.Service, userService user.Service) Service {
-	return &service{
+// NewInvoiceService creates a new invoice service
+func NewInvoiceService(repo InvoiceRepository, orderService order.OrderService, productService product.ProductService, userService user.UserService) InvoiceService {
+	return &invoiceService{
 		repo:           repo,
 		orderService:   orderService,
 		productService: productService,
@@ -39,7 +39,7 @@ func NewService(repo Repository, orderService order.Service, productService prod
 }
 
 // CreateInvoiceFromOrder creates an invoice from an existing order
-func (s *service) CreateInvoiceFromOrder(ctx context.Context, orderID uint64) (*Invoice, error) {
+func (s *invoiceService) CreateInvoiceFromOrder(ctx context.Context, orderID uint64) (*Invoice, error) {
 	if orderID == 0 {
 		return nil, fmt.Errorf("valid order ID is required")
 	}
@@ -116,7 +116,7 @@ func (s *service) CreateInvoiceFromOrder(ctx context.Context, orderID uint64) (*
 }
 
 // GetInvoiceByID retrieves an invoice by its ID
-func (s *service) GetInvoiceByID(ctx context.Context, invoiceID uint64) (*Invoice, error) {
+func (s *invoiceService) GetInvoiceByID(ctx context.Context, invoiceID uint64) (*Invoice, error) {
 	if invoiceID == 0 {
 		return nil, fmt.Errorf("valid invoice ID is required")
 	}
@@ -128,7 +128,7 @@ func (s *service) GetInvoiceByID(ctx context.Context, invoiceID uint64) (*Invoic
 }
 
 // GetInvoiceByOrderID retrieves an invoice by order ID
-func (s *service) GetInvoiceByOrderID(ctx context.Context, orderID uint64) (*Invoice, error) {
+func (s *invoiceService) GetInvoiceByOrderID(ctx context.Context, orderID uint64) (*Invoice, error) {
 	if orderID == 0 {
 		return nil, fmt.Errorf("valid order ID is required")
 	}
@@ -140,7 +140,7 @@ func (s *service) GetInvoiceByOrderID(ctx context.Context, orderID uint64) (*Inv
 }
 
 // GetInvoicesByUserID retrieves all invoices for a user
-func (s *service) GetInvoicesByUserID(ctx context.Context, userID uint64) ([]Invoice, error) {
+func (s *invoiceService) GetInvoicesByUserID(ctx context.Context, userID uint64) ([]Invoice, error) {
 	if userID == 0 {
 		return nil, fmt.Errorf("valid user ID is required")
 	}
@@ -164,7 +164,7 @@ func (s *service) GetInvoicesByUserID(ctx context.Context, userID uint64) ([]Inv
 }
 
 // UpdateInvoiceStatus updates the status of an invoice
-func (s *service) UpdateInvoiceStatus(ctx context.Context, invoiceID uint64, status string) error {
+func (s *invoiceService) UpdateInvoiceStatus(ctx context.Context, invoiceID uint64, status string) error {
 	if invoiceID == 0 {
 		return fmt.Errorf("valid invoice ID is required")
 	}
@@ -184,13 +184,13 @@ func (s *service) UpdateInvoiceStatus(ctx context.Context, invoiceID uint64, sta
 }
 
 // generateInvoiceNumber generates a unique invoice number
-func (s *service) generateInvoiceNumber() string {
+func (s *invoiceService) generateInvoiceNumber() string {
 	timestamp := time.Now().Unix()
 	return "INV-" + strconv.FormatInt(timestamp, 10)
 }
 
 // populateInvoiceDetails populates an invoice with complete order, product, and user details
-func (s *service) populateInvoiceDetails(ctx context.Context, invoice *Invoice) (*Invoice, error) {
+func (s *invoiceService) populateInvoiceDetails(ctx context.Context, invoice *Invoice) (*Invoice, error) {
 	// If invoice is already populated (has user info), return as is
 	if invoice.Username != "" && len(invoice.Items) > 0 {
 		return invoice, nil

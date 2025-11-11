@@ -25,7 +25,7 @@ type Order struct {
 }
 
 // Repository defines the interface for order data operations
-type Repository interface {
+type OrderRepository interface {
 	Create(ctx context.Context, order *Order) error
 	CreateOrderItems(ctx context.Context, orderID uint64, items []OrderItem) error
 	GetOrdersByUserID(ctx context.Context, userID uint64) ([]Order, error)

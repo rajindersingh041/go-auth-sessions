@@ -15,18 +15,18 @@ import (
 
 // Handler handles HTTP requests for order operations
 type Handler struct {
-	service     Service
-	userService user.Service
+	service     OrderService
+	userService user.UserService
 	jwtManager  auth.JWTManager
 }
 
 // NewHandler creates a new order handler
-func NewHandler(service Service, userService user.Service, jwtManager auth.JWTManager) *Handler {
-	return &Handler{
-		service:     service,
-		userService: userService,
-		jwtManager:  jwtManager,
-	}
+func NewHandler(service OrderService, userService user.UserService, jwtManager auth.JWTManager) *Handler {
+       return &Handler{
+	       service:     service,
+	       userService: userService,
+	       jwtManager:  jwtManager,
+       }
 }
 
 // RegisterRoutes registers all order-related routes

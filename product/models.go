@@ -16,7 +16,7 @@ type Product struct {
 }
 
 // Repository defines the interface for product data operations
-type Repository interface {
+type ProductRepository interface {
 	Create(ctx context.Context, product *Product) error
 	GetAll(ctx context.Context) ([]Product, error)
 	GetByID(ctx context.Context, productID uint64) (*Product, error)
