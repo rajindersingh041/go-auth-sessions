@@ -7,6 +7,7 @@ import (
 	"github.com/rajindersingh041/go-auth-sessions/auth"
 	"github.com/rajindersingh041/go-auth-sessions/invoice"
 	"github.com/rajindersingh041/go-auth-sessions/order"
+	"github.com/rajindersingh041/go-auth-sessions/orderproduction"
 	"github.com/rajindersingh041/go-auth-sessions/product"
 	"github.com/rajindersingh041/go-auth-sessions/user"
 )
@@ -47,6 +48,7 @@ type Container struct {
 	OrderService   order.OrderService
 	ProductService product.ProductService
 	InvoiceService invoice.InvoiceService
+	OrderProductionService orderproduction.ProductionService
 
 	// Auth components
 	JWTManager     auth.JWTManager
@@ -82,24 +84,27 @@ func NewContainer(db *sql.DB, dbDriver string) *Container {
 	var orderRepo order.OrderRepository
 	var productRepo product.ProductRepository
 	var invoiceRepo invoice.InvoiceRepository
+	var orderProductionRepo orderproduction.ProductionRepositary
 
 
 	// Initialize repositories based on dbDriver
 	// Tables and schemas should be created as needed in the respective repository implementations
-	switch dbDriver {
-	case "clickhouse":
-		userRepo = user.NewClickHouseRepository(db)
-		orderRepo = order.NewClickHouseRepository(db)
-		productRepo = product.NewClickHouseRepository(db)
-		invoiceRepo = invoice.NewClickHouseRepository(db)
-	case "postgres":
-		userRepo = user.NewPostgresRepository(db)
-		orderRepo = order.NewPostgresRepository(db)
-		productRepo = product.NewPostgresRepository(db)
-		invoiceRepo = invoice.NewPostgresRepository(db)
-	default:
-		log.Fatalf("Unsupported DB_DRIVER: %s", dbDriver)
-	}
+       switch dbDriver {
+       case "clickhouse":
+	       userRepo = user.NewClickHouseRepository(db)
+	       orderRepo = order.NewClickHouseRepository(db)
+	       productRepo = product.NewClickHouseRepository(db)
+	       invoiceRepo = invoice.NewClickHouseRepository(db)
+	       // TODO: Add ClickHouse implementation for orderProductionRepo if needed
+       case "postgres":
+	       userRepo = user.NewPostgresRepository(db)
+	       orderRepo = order.NewPostgresRepository(db)
+	       productRepo = product.NewPostgresRepository(db)
+	       invoiceRepo = invoice.NewPostgresRepository(db)
+	       orderProductionRepo = orderproduction.NewPostgresRepository(db)
+       default:
+	       log.Fatalf("Unsupported DB_DRIVER: %s", dbDriver)
+       }
 
 	// Create services
 	// Services use repositories and other components to perform business logic
@@ -111,7 +116,7 @@ func NewContainer(db *sql.DB, dbDriver string) *Container {
 		productService := product.NewProductService(productRepo)
 		orderService := order.NewOrderService(orderRepo, productService)
 		invoiceService := invoice.NewInvoiceService(invoiceRepo, orderService, productService, userService)
-
+		orderProductionService := orderproduction.NewProductionService(orderProductionRepo)
 	// what is the purpose of newservice?
 	// NewService functions create and return service instances
 	// They take the required dependencies as parameters
@@ -129,6 +134,7 @@ func NewContainer(db *sql.DB, dbDriver string) *Container {
 		JWTManager:     jwtManager,
 		PasswordHasher: passwordHasher,
 		DB:             db,
+		OrderProductionService: orderProductionService,
 	}
 }
 

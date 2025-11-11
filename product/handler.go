@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/rajindersingh041/go-auth-sessions/auth"
+	"github.com/rajindersingh041/go-auth-sessions/helper"
 )
 
 // Handler handles HTTP requests for product operations
@@ -43,11 +43,11 @@ func (h *Handler) handleGetAllProducts() http.HandlerFunc {
 		
 		products, err := h.service.GetAllProducts(ctx)
 		if err != nil {
-			respondError(w, http.StatusInternalServerError, "Failed to fetch products")
+			helper.RespondError(w, http.StatusInternalServerError, "Failed to fetch products")
 			return
 		}
 
-		respondJSON(w, http.StatusOK, map[string]interface{}{
+		helper.RespondJSON(w, http.StatusOK, map[string]interface{}{
 			"products": products,
 			"count":    len(products),
 		})
@@ -65,17 +65,17 @@ func (h *Handler) handleGetProductByIDOrCategory() http.HandlerFunc {
 		if strings.HasPrefix(path, "category/") {
 			category := strings.TrimPrefix(path, "category/")
 			if category == "" {
-				respondError(w, http.StatusBadRequest, "Category name is required")
+				helper.RespondError(w, http.StatusBadRequest, "Category name is required")
 				return
 			}
 			
 			products, err := h.service.GetProductsByCategory(ctx, category)
 			if err != nil {
-				respondError(w, http.StatusInternalServerError, "Failed to fetch products by category")
+				helper.RespondError(w, http.StatusInternalServerError, "Failed to fetch products by category")
 				return
 			}
 			
-			respondJSON(w, http.StatusOK, map[string]interface{}{
+			helper.RespondJSON(w, http.StatusOK, map[string]interface{}{
 				"products": products,
 				"category": category,
 				"count":    len(products),
@@ -86,27 +86,27 @@ func (h *Handler) handleGetProductByIDOrCategory() http.HandlerFunc {
 		// Otherwise, treat as product ID
 		productIDStr := path
 		if productIDStr == "" {
-			respondError(w, http.StatusBadRequest, "Product ID is required")
+			helper.RespondError(w, http.StatusBadRequest, "Product ID is required")
 			return
 		}
 
 		productID, err := strconv.ParseUint(productIDStr, 10, 64)
 		if err != nil {
-			respondError(w, http.StatusBadRequest, "Invalid product ID")
+			helper.RespondError(w, http.StatusBadRequest, "Invalid product ID")
 			return
 		}
 
 		product, err := h.service.GetProductByID(ctx, productID)
 		if err != nil {
 			if err.Error() == "product not found" {
-				respondError(w, http.StatusNotFound, "Product not found")
+				helper.RespondError(w, http.StatusNotFound, "Product not found")
 				return
 			}
-			respondError(w, http.StatusInternalServerError, "Failed to fetch product")
+			helper.RespondError(w, http.StatusInternalServerError, "Failed to fetch product")
 			return
 		}
 
-		respondJSON(w, http.StatusOK, product)
+		helper.RespondJSON(w, http.StatusOK, product)
 	}
 }
 
@@ -115,21 +115,21 @@ func (h *Handler) handleCreateProduct() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req CreateProductRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			respondError(w, http.StatusBadRequest, "Invalid request body")
+			helper.RespondError(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
 
 		ctx := r.Context()
 		if err := h.service.CreateProduct(ctx, req); err != nil {
 			if strings.Contains(err.Error(), "required") {
-				respondError(w, http.StatusBadRequest, err.Error())
+				helper.RespondError(w, http.StatusBadRequest, err.Error())
 				return
 			}
-			respondError(w, http.StatusInternalServerError, "Failed to create product")
+			helper.RespondError(w, http.StatusInternalServerError, "Failed to create product")
 			return
 		}
 
-		respondJSON(w, http.StatusCreated, map[string]string{
+		helper.RespondJSON(w, http.StatusCreated, map[string]string{
 			"message": "Product created successfully",
 		})
 	}
@@ -142,14 +142,14 @@ func (h *Handler) handleUpdateProductStock() http.HandlerFunc {
 		path := strings.TrimPrefix(r.URL.Path, "/products/")
 		parts := strings.Split(path, "/")
 		if len(parts) < 2 || parts[1] != "stock" {
-			respondError(w, http.StatusBadRequest, "Invalid URL format. Use /products/{id}/stock")
+			helper.RespondError(w, http.StatusBadRequest, "Invalid URL format. Use /products/{id}/stock")
 			return
 		}
 
 		productIDStr := parts[0]
 		productID, err := strconv.ParseUint(productIDStr, 10, 64)
 		if err != nil {
-			respondError(w, http.StatusBadRequest, "Invalid product ID")
+			helper.RespondError(w, http.StatusBadRequest, "Invalid product ID")
 			return
 		}
 
@@ -157,36 +157,23 @@ func (h *Handler) handleUpdateProductStock() http.HandlerFunc {
 			InStock bool `json:"in_stock"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			respondError(w, http.StatusBadRequest, "Invalid request body")
+			helper.RespondError(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
 
 		ctx := r.Context()
 		if err := h.service.UpdateProductStock(ctx, productID, req.InStock); err != nil {
 			if strings.Contains(err.Error(), "required") {
-				respondError(w, http.StatusBadRequest, err.Error())
+				helper.RespondError(w, http.StatusBadRequest, err.Error())
 				return
 			}
-			respondError(w, http.StatusInternalServerError, "Failed to update product stock")
+			helper.RespondError(w, http.StatusInternalServerError, "Failed to update product stock")
 			return
 		}
 
-		respondJSON(w, http.StatusOK, map[string]string{
+		helper.RespondJSON(w, http.StatusOK, map[string]string{
 			"message": "Product stock updated successfully",
 		})
 	}
 }
 
-// Helper functions for HTTP responses
-func respondJSON(w http.ResponseWriter, status int, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
-}
-
-func respondError(w http.ResponseWriter, status int, message string) {
-	respondJSON(w, status, map[string]interface{}{
-		"error":     message,
-		"timestamp": time.Now().Format(time.RFC3339),
-	})
-}

@@ -13,6 +13,7 @@ import (
 	"github.com/rajindersingh041/go-auth-sessions/auth"
 	"github.com/rajindersingh041/go-auth-sessions/invoice"
 	"github.com/rajindersingh041/go-auth-sessions/order"
+	"github.com/rajindersingh041/go-auth-sessions/orderproduction"
 	"github.com/rajindersingh041/go-auth-sessions/product"
 	"github.com/rajindersingh041/go-auth-sessions/user"
 )
@@ -48,9 +49,10 @@ func main() {
 	orderHandler := order.NewHandler(container.OrderService, container.UserService)
 	productHandler := product.NewHandler(container.ProductService, container.JWTManager)
 	invoiceHandler := invoice.NewHandler(container.InvoiceService, container.JWTManager)
+	orderproductionHandler := orderproduction.NewProductionHandler(container.OrderProductionService, container.OrderService)
 
 	// Setup HTTP server with routes
-	server := setupServer(userHandler, orderHandler, productHandler, invoiceHandler, container.JWTManager)
+	server := setupServer(userHandler, orderHandler, productHandler, invoiceHandler, container.JWTManager,orderproductionHandler)
 
 	// Get port from environment
 	port := getEnv("PORT", "8080")
@@ -93,7 +95,7 @@ func main() {
 }
 
 // setupServer configures HTTP routes and middleware
-func setupServer(userHandler *user.Handler, orderHandler *order.Handler, productHandler *product.Handler, invoiceHandler *invoice.Handler, jwtManager auth.JWTManager) http.Handler {
+func setupServer(userHandler *user.Handler, orderHandler *order.Handler, productHandler *product.Handler, invoiceHandler *invoice.Handler, jwtManager auth.JWTManager, orderProductionHandler * orderproduction.ProductionHandler) http.Handler {
 	mux := http.NewServeMux()
 
 	// Health check endpoint
@@ -104,6 +106,7 @@ func setupServer(userHandler *user.Handler, orderHandler *order.Handler, product
 	orderHandler.RegisterRoutes(mux, jwtManager)
 	productHandler.RegisterRoutes(mux, jwtManager)
 	invoiceHandler.RegisterRoutes(mux, jwtManager)
+	orderProductionHandler.RegisterRoutes(mux, jwtManager)
 
 	// Apply global middleware: logging, recovery, CORS, etc.
 	handler := globalLoggingMiddleware(globalRecoveryMiddleware(mux))

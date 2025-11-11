@@ -6,9 +6,9 @@ import (
 	"log"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/rajindersingh041/go-auth-sessions/auth"
+	"github.com/rajindersingh041/go-auth-sessions/helper"
 	"github.com/rajindersingh041/go-auth-sessions/user"
 )
 
@@ -48,7 +48,7 @@ func (h *Handler) handleGetOrdersByUsername() http.HandlerFunc {
 			username = r.URL.Path[len("/orders/"):]
 		}
 		if username == "" {
-			respondError(w, http.StatusBadRequest, "Username required in path")
+			helper.RespondError(w, http.StatusBadRequest, "Username required in path")
 			return
 		}
 
@@ -57,18 +57,18 @@ func (h *Handler) handleGetOrdersByUsername() http.HandlerFunc {
 		// Get user to validate existence and get user ID
 		user, err := h.userService.GetUserByUsername(ctx, username)
 		if err != nil || user == nil {
-			respondError(w, http.StatusNotFound, "User not found")
+			helper.RespondError(w, http.StatusNotFound, "User not found")
 			return
 		}
 
 		// Fetch orders for the user
 		orders, err := h.service.GetOrdersByUserID(ctx, user.UserID)
 		if err != nil {
-			respondError(w, http.StatusInternalServerError, "Failed to fetch orders")
+			helper.RespondError(w, http.StatusInternalServerError, "Failed to fetch orders")
 			return
 		}
 
-		respondJSON(w, http.StatusOK, map[string]interface{}{
+		helper.RespondJSON(w, http.StatusOK, map[string]interface{}{
 			"orders": orders,
 			"count":  len(orders),
 		})
@@ -85,7 +85,7 @@ func (h *Handler) handleCreateOrderLegacyPath() http.HandlerFunc {
 			username = r.URL.Path[len("/orders/"):]
 		}
 		if username == "" {
-			respondError(w, http.StatusBadRequest, "Username required in path")
+			helper.RespondError(w, http.StatusBadRequest, "Username required in path")
 			return
 		}
 
@@ -94,14 +94,14 @@ func (h *Handler) handleCreateOrderLegacyPath() http.HandlerFunc {
 		// Get user to validate existence and get user ID
 		user, err := h.userService.GetUserByUsername(ctx, username)
 		if err != nil || user == nil {
-			respondError(w, http.StatusNotFound, "User not found")
+			helper.RespondError(w, http.StatusNotFound, "User not found")
 			return
 		}
 
 		// Parse request body
 		var req CreateOrderRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			respondError(w, http.StatusBadRequest, "Invalid request body")
+			helper.RespondError(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
 
@@ -114,34 +114,21 @@ func (h *Handler) handleCreateOrderLegacyPath() http.HandlerFunc {
 			if strings.Contains(err.Error(), "valid product ID and positive quantity are required") ||
 			strings.Contains(err.Error(), "product not found") ||
 			strings.Contains(err.Error(), "out of stock") {
-				respondError(w, http.StatusBadRequest, err.Error())
+				helper.RespondError(w, http.StatusBadRequest, err.Error())
 				return
 			}
 			// Return the actual error message for debugging
-			respondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create order: %v", err))
+			helper.RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create order: %v", err))
 			return
 		}
 
-		respondJSON(w, http.StatusCreated, map[string]interface{}{
+		helper.RespondJSON(w, http.StatusCreated, map[string]interface{}{
 			"message": "Order created successfully",
 			"order":   order,
 		})
 	}
 }
 
-// Helper functions for HTTP responses
-func respondJSON(w http.ResponseWriter, status int, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
-}
-
-func respondError(w http.ResponseWriter, status int, message string) {
-	respondJSON(w, status, map[string]interface{}{
-		"error":     message,
-		"timestamp": time.Now().Format(time.RFC3339),
-	})
-}
 
 // handleGetOrders handles requests to get orders for authenticated user
 // URL pattern: GET /orders (uses JWT token to identify user)
@@ -150,7 +137,7 @@ func (h *Handler) handleGetOrders() http.HandlerFunc {
 		// Get username from context (set by WithJWTAuth middleware)
 		username, ok := r.Context().Value(auth.UsernameContextKey).(string)
 		if !ok || username == "" {
-			respondError(w, http.StatusUnauthorized, "User not authenticated")
+			helper.RespondError(w, http.StatusUnauthorized, "User not authenticated")
 			return
 		}
 
@@ -159,18 +146,18 @@ func (h *Handler) handleGetOrders() http.HandlerFunc {
 		// Get user to validate existence and get user ID
 		user, err := h.userService.GetUserByUsername(ctx, username)
 		if err != nil || user == nil {
-			respondError(w, http.StatusNotFound, "User not found")
+			helper.RespondError(w, http.StatusNotFound, "User not found")
 			return
 		}
 
 		// Fetch orders for the user
 		orders, err := h.service.GetOrdersByUserID(ctx, user.UserID)
 		if err != nil {
-			respondError(w, http.StatusInternalServerError, "Failed to fetch orders")
+			helper.RespondError(w, http.StatusInternalServerError, "Failed to fetch orders")
 			return
 		}
 
-		respondJSON(w, http.StatusOK, map[string]interface{}{
+		helper.RespondJSON(w, http.StatusOK, map[string]interface{}{
 			"orders": orders,
 			"count":  len(orders),
 		})
@@ -184,7 +171,7 @@ func (h *Handler) handleCreateOrder() http.HandlerFunc {
 		// Get username from context (set by WithJWTAuth middleware)
 		username, ok := r.Context().Value(auth.UsernameContextKey).(string)
 		if !ok || username == "" {
-			respondError(w, http.StatusUnauthorized, "User not authenticated")
+			helper.RespondError(w, http.StatusUnauthorized, "User not authenticated")
 			return
 		}
 
@@ -193,14 +180,14 @@ func (h *Handler) handleCreateOrder() http.HandlerFunc {
 		// Get user to validate existence and get user ID
 		user, err := h.userService.GetUserByUsername(ctx, username)
 		if err != nil || user == nil {
-			respondError(w, http.StatusNotFound, "User not found")
+			helper.RespondError(w, http.StatusNotFound, "User not found")
 			return
 		}
 
 		// Parse request body for multi-product order
 		var req CreateOrderRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			respondError(w, http.StatusBadRequest, "Invalid request body")
+			helper.RespondError(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
 
@@ -212,15 +199,15 @@ func (h *Handler) handleCreateOrder() http.HandlerFunc {
 			
 			// Check if it's a validation error (contains specific messages)
 			if strings.Contains(err.Error(), "required") || strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "out of stock") {
-				respondError(w, http.StatusBadRequest, err.Error())
+				helper.RespondError(w, http.StatusBadRequest, err.Error())
 				return
 			}
 			// Return the actual error message for debugging
-			respondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create order: %v", err))
+			helper.RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create order: %v", err))
 			return
 		}
 
-		respondJSON(w, http.StatusCreated, map[string]interface{}{
+		helper.RespondJSON(w, http.StatusCreated, map[string]interface{}{
 			"message": "Order created successfully",
 			"order":   order,
 			"total_amount": order.Total,
@@ -236,7 +223,7 @@ func (h *Handler) handleCreateSingleOrder() http.HandlerFunc {
 		// Get username from context (set by WithJWTAuth middleware)
 		username, ok := r.Context().Value(auth.UsernameContextKey).(string)
 		if !ok || username == "" {
-			respondError(w, http.StatusUnauthorized, "User not authenticated")
+			helper.RespondError(w, http.StatusUnauthorized, "User not authenticated")
 			return
 		}
 
@@ -245,14 +232,14 @@ func (h *Handler) handleCreateSingleOrder() http.HandlerFunc {
 		// Get user to validate existence and get user ID
 		user, err := h.userService.GetUserByUsername(ctx, username)
 		if err != nil || user == nil {
-			respondError(w, http.StatusNotFound, "User not found")
+			helper.RespondError(w, http.StatusNotFound, "User not found")
 			return
 		}
 
 		// Parse request body for single product order
 		var req CreateSingleOrderRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			respondError(w, http.StatusBadRequest, "Invalid request body")
+			helper.RespondError(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
 
@@ -264,14 +251,14 @@ func (h *Handler) handleCreateSingleOrder() http.HandlerFunc {
 			
 			// Check if it's a validation error
 			if strings.Contains(err.Error(), "required") || strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "out of stock") {
-				respondError(w, http.StatusBadRequest, err.Error())
+				helper.RespondError(w, http.StatusBadRequest, err.Error())
 				return
 			}
-			respondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create order: %v", err))
+			helper.RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create order: %v", err))
 			return
 		}
 
-		respondJSON(w, http.StatusCreated, map[string]interface{}{
+		helper.RespondJSON(w, http.StatusCreated, map[string]interface{}{
 			"message": "Order created successfully",
 			"order":   order,
 		})

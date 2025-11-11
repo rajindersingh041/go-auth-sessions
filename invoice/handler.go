@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/rajindersingh041/go-auth-sessions/auth"
+	"github.com/rajindersingh041/go-auth-sessions/helper"
 )
 
 // Handler handles HTTP requests for invoice operations
@@ -44,7 +45,7 @@ func (h *Handler) handleCreateInvoice() http.HandlerFunc {
 		// Parse request body
 		var req CreateInvoiceRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			respondError(w, http.StatusBadRequest, "Invalid request body")
+			helper.RespondError(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
 
@@ -53,14 +54,14 @@ func (h *Handler) handleCreateInvoice() http.HandlerFunc {
 		if err != nil {
 			log.Printf("Invoice creation failed: %v", err)
 			if strings.Contains(err.Error(), "valid order ID is required") {
-				respondError(w, http.StatusBadRequest, err.Error())
+				helper.RespondError(w, http.StatusBadRequest, err.Error())
 				return
 			}
-			respondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create invoice: %v", err))
+			helper.RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create invoice: %v", err))
 			return
 		}
 
-		respondJSON(w, http.StatusCreated, invoice)
+		helper.RespondJSON(w, http.StatusCreated, invoice)
 	}
 }
 
@@ -75,7 +76,7 @@ func (h *Handler) handleGetInvoice() http.HandlerFunc {
 		// Parse URL path
 		path := strings.TrimPrefix(r.URL.Path, "/invoices/")
 		if path == "" {
-			respondError(w, http.StatusBadRequest, "Invoice ID or order ID required in path")
+			helper.RespondError(w, http.StatusBadRequest, "Invoice ID or order ID required in path")
 			return
 		}
 
@@ -87,7 +88,7 @@ func (h *Handler) handleGetInvoice() http.HandlerFunc {
 			orderIDStr := strings.TrimPrefix(path, "order/")
 			orderID, parseErr := strconv.ParseUint(orderIDStr, 10, 64)
 			if parseErr != nil {
-				respondError(w, http.StatusBadRequest, "Invalid order ID")
+				helper.RespondError(w, http.StatusBadRequest, "Invalid order ID")
 				return
 			}
 			invoice, err = h.service.GetInvoiceByOrderID(ctx, orderID)
@@ -95,7 +96,7 @@ func (h *Handler) handleGetInvoice() http.HandlerFunc {
 			// Assume it's an invoice ID
 			invoiceID, parseErr := strconv.ParseUint(path, 10, 64)
 			if parseErr != nil {
-				respondError(w, http.StatusBadRequest, "Invalid invoice ID")
+				helper.RespondError(w, http.StatusBadRequest, "Invalid invoice ID")
 				return
 			}
 			invoice, err = h.service.GetInvoiceByID(ctx, invoiceID)
@@ -103,14 +104,14 @@ func (h *Handler) handleGetInvoice() http.HandlerFunc {
 
 		if err != nil {
 			if strings.Contains(err.Error(), "not found") {
-				respondError(w, http.StatusNotFound, "Invoice not found")
+				helper.RespondError(w, http.StatusNotFound, "Invoice not found")
 				return
 			}
-			respondError(w, http.StatusInternalServerError, "Failed to retrieve invoice")
+			helper.RespondError(w, http.StatusInternalServerError, "Failed to retrieve invoice")
 			return
 		}
 
-		respondJSON(w, http.StatusOK, invoice)
+		helper.RespondJSON(w, http.StatusOK, invoice)
 	}
 }
 
@@ -123,24 +124,24 @@ func (h *Handler) handleGetUserInvoices() http.HandlerFunc {
 		// Extract user ID from URL path
 		path := strings.TrimPrefix(r.URL.Path, "/invoices/user/")
 		if path == "" {
-			respondError(w, http.StatusBadRequest, "User ID required in path")
+			helper.RespondError(w, http.StatusBadRequest, "User ID required in path")
 			return
 		}
 
 		userID, err := strconv.ParseUint(path, 10, 64)
 		if err != nil {
-			respondError(w, http.StatusBadRequest, "Invalid user ID")
+			helper.RespondError(w, http.StatusBadRequest, "Invalid user ID")
 			return
 		}
 
 		// Get invoices
 		invoices, err := h.service.GetInvoicesByUserID(ctx, userID)
 		if err != nil {
-			respondError(w, http.StatusInternalServerError, "Failed to retrieve invoices")
+			helper.RespondError(w, http.StatusInternalServerError, "Failed to retrieve invoices")
 			return
 		}
 
-		respondJSON(w, http.StatusOK, map[string]interface{}{
+		helper.RespondJSON(w, http.StatusOK, map[string]interface{}{
 			"invoices": invoices,
 			"count":    len(invoices),
 		})
@@ -156,51 +157,35 @@ func (h *Handler) handleUpdateInvoiceStatus() http.HandlerFunc {
 		// Extract invoice ID from URL path
 		path := strings.TrimPrefix(r.URL.Path, "/invoices/")
 		if path == "" {
-			respondError(w, http.StatusBadRequest, "Invoice ID required in path")
+			helper.RespondError(w, http.StatusBadRequest, "Invoice ID required in path")
 			return
 		}
 
 		invoiceID, err := strconv.ParseUint(path, 10, 64)
 		if err != nil {
-			respondError(w, http.StatusBadRequest, "Invalid invoice ID")
+			helper.RespondError(w, http.StatusBadRequest, "Invalid invoice ID")
 			return
 		}
 
 		// Parse request body
 		var req UpdateInvoiceStatusRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			respondError(w, http.StatusBadRequest, "Invalid request body")
+			helper.RespondError(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
 
 		// Update status
 		if err := h.service.UpdateInvoiceStatus(ctx, invoiceID, req.Status); err != nil {
 			if strings.Contains(err.Error(), "invalid status") {
-				respondError(w, http.StatusBadRequest, err.Error())
+				helper.RespondError(w, http.StatusBadRequest, err.Error())
 				return
 			}
-			respondError(w, http.StatusInternalServerError, "Failed to update invoice status")
+			helper.RespondError(w, http.StatusInternalServerError, "Failed to update invoice status")
 			return
 		}
 
-		respondJSON(w, http.StatusOK, map[string]string{
+		helper.RespondJSON(w, http.StatusOK, map[string]string{
 			"message": "Invoice status updated successfully",
 		})
 	}
-}
-
-// Helper functions for HTTP responses
-func respondJSON(w http.ResponseWriter, status int, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
-}
-
-func respondError(w http.ResponseWriter, status int, message string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"error":     message,
-		"timestamp": "2025-11-10T22:41:03+01:00", // You can use time.Now() here
-	})
 }
