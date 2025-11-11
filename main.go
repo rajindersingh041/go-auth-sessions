@@ -21,6 +21,8 @@ func main() {
 	_ = godotenv.Load()
 
 	// Initialize database connection
+	// connection is established based on DB_DRIVER env variable
+	// db contains the sql.DB pointer
 	db, err := InitDB()
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)

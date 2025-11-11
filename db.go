@@ -12,15 +12,14 @@ import (
 	_ "github.com/lib/pq"
 )
 
-// ...User struct moved to models.go...
-// ...UserRepository struct and methods moved to repository.go...
-
 // InitDB initializes the database connection (ClickHouse or Postgres) with proper configuration
 func InitDB() (*sql.DB, error) {
 	driver := getEnvOrDefault("DB_DRIVER", "clickhouse")
-	var db *sql.DB
-	var err error
-	var dsn string
+	var db *sql.DB //sql.DB pointer
+	var err error //error variable
+	var dsn string //data source name
+
+	// Open database connection based on driver
 	if driver == "postgres" {
 		dsn = getPostgresDSN()
 		log.Print("Postgres DSN is ", dsn)
@@ -41,9 +40,12 @@ func InitDB() (*sql.DB, error) {
 	db.SetConnMaxIdleTime(10 * time.Minute)
 
 	// Ping database with timeout
+	// context with timeout, to avoid hanging if the database is unreachable
+	// we set a timeout of 5 seconds for the ping operation
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	// special ping context for postgres or clickhouse if needed
 	if err := db.PingContext(ctx); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("failed to ping database: %w", err)
@@ -53,14 +55,6 @@ func InitDB() (*sql.DB, error) {
 		log.Println("Connected to Postgres successfully")
 	} else {
 		log.Println("Connected to ClickHouse successfully")
-	}
-
-	// Create users table (ClickHouse only, Postgres handled in repo)
-	if driver == "clickhouse" {
-		if err := createUserTable(db); err != nil {
-			db.Close()
-			return nil, err
-		}
 	}
 
 	return db, nil
@@ -94,28 +88,5 @@ func getEnvOrDefault(key, fallback string) string {
 		return value
 	}
 	return fallback
-}
-
-// createUserTable creates the users table if it doesn't exist
-func createUserTable(db *sql.DB) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	query := `
-		CREATE TABLE IF NOT EXISTS users (
-			user_id UInt64 DEFAULT toUInt64(rand()),
-			username String,
-			password_hash String
-		) ENGINE = MergeTree() 
-		ORDER BY user_id
-	`
-
-	_, err := db.ExecContext(ctx, query)
-	if err != nil {
-		return fmt.Errorf("failed to create users table: %w", err)
-	}
-
-	log.Println("Users table ensured")
-	return nil
 }
 

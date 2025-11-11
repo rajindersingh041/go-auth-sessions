@@ -5,32 +5,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"golang.org/x/crypto/bcrypt"
 )
-
-// PasswordHasher interface for password hashing operations
-type PasswordHasher interface {
-	HashPassword(password string) (string, error)
-	CheckPassword(password, hash string) error
-}
-
-// JWTManager interface for JWT operations
-type JWTManager interface {
-	GenerateToken(username string) (string, error)
-	ValidateToken(tokenString string) (string, error)
-}
-
-// BcryptPasswordHasher implements PasswordHasher using bcrypt
-type BcryptPasswordHasher struct{}
-
-func (b BcryptPasswordHasher) HashPassword(password string) (string, error) {
-	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	return string(bytes), err
-}
-
-func (b BcryptPasswordHasher) CheckPassword(password, hash string) error {
-	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
-}
 
 // SimpleJWTManager implements JWTManager using golang-jwt
 type SimpleJWTManager struct{}
